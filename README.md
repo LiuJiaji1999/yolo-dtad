@@ -9,6 +9,18 @@ ultralytics版本为8.1.9,在ultralytics/__init__.py中的__version__有标识.
     timm: 0.9.8                 
     mmcv: 2.1.0                
     mmengine: 0.9.0  / 0.10.3    
+
+- 成功编译DCNv3 和 DCNv4：
+```bash
+Installed /home/lenovo/anaconda3/envs/ObjectDetection/lib/python3.8/site-packages/DCNv3-1.1-py3.8-linux-x86_64.egg
+Processing dependencies for DCNv3==1.1
+Finished processing dependencies for DCNv3==1.1
+
+
+Installed /home/lenovo/anaconda3/envs/ObjectDetection/lib/python3.8/site-packages/DCNv4-1.0.0-py3.8-linux-x86_64.egg
+Processing dependencies for DCNv4==1.0.0
+Finished processing dependencies for DCNv4==1.0.0
+```
 ```
 
 ##### 子目录下的文件说明
