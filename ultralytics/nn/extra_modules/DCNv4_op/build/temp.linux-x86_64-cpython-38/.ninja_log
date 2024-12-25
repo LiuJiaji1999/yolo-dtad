@@ -1,0 +1,4 @@
+# ninja log v5
+0	12889	1718801063212866348	/home/lenovo/data/liujiaji/yolov8/ultralytics-main/ultralytics/nn/extra_modules/DCNv4_op/build/temp.linux-x86_64-cpython-38/home/lenovo/data/liujiaji/yolov8/ultralytics-main/ultralytics/nn/extra_modules/DCNv4_op/src/vision.o	d39db3975ccf08f
+0	78319	1718801128641189562	/home/lenovo/data/liujiaji/yolov8/ultralytics-main/ultralytics/nn/extra_modules/DCNv4_op/build/temp.linux-x86_64-cpython-38/home/lenovo/data/liujiaji/yolov8/ultralytics-main/ultralytics/nn/extra_modules/DCNv4_op/src/cuda/dcnv4_cuda.o	49941b8f3cd45410
+0	163067	1718801213381604472	/home/lenovo/data/liujiaji/yolov8/ultralytics-main/ultralytics/nn/extra_modules/DCNv4_op/build/temp.linux-x86_64-cpython-38/home/lenovo/data/liujiaji/yolov8/ultralytics-main/ultralytics/nn/extra_modules/DCNv4_op/src/cuda/flash_deform_attn_cuda.o	dc0e36128a07f94f
