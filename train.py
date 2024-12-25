@@ -8,7 +8,7 @@ if __name__ == '__main__':
     # model.load('/home/lenovo/data/liujiaji/yolov8/ultralytics-main/runs/train/exp112/weights/best.pt') # loading pretrain weights
     # model = RTDETR('ultralytics/cfg/models/v8/yolov8m-swintransformer.yaml')
 
-    model.train(data='/home/lenovo/data/liujiaji/powerGit/dayolo/domain/sim10k_to_cityscaps.yaml',             
+    model.train(data='/home/lenovo/data/liujiaji/powerGit/dayolo/domain/sim10k_to_cityscapes.yaml',             
                 cache=False,
                 imgsz=640,
                 epochs=2,
