@@ -1,0 +1,173 @@
+# Ultralytics YOLO 🚀, AGPL-3.0 license
+# COCO128 dataset https://www.kaggle.com/ultralytics/coco128 (first 128 images from COCO train2017) by Ultralytics
+# Example usage: yolo train data=coco128.yaml
+# parent
+# ├── ultralytics
+# └── datasets
+#     └── coco128  ← downloads here (7 MB)
+ 
+ 
+# Train/val/test sets as 1) dir: path/to/imgs, 2) file: path/to/imgs.txt, or 3) list: [path/to/imgs1, path/to/imgs2, ..]
+
+# path: /home/lenovo/data/liujiaji/yolov8/ultralytics-main/dataset/images  # dataset root dir
+# train: train  # train images (relative to 'path') 128 images
+# val: val  # val images (relative to 'path') 128 images
+# test: test # test images (optional)
+ 
+# ####  Classes -- CPLID
+# names:
+#   0: insulator
+#   1: defect
+
+
+
+
+# Train/val/test sets as 1) dir: path/to/imgs, 2) file: path/to/imgs.txt, or 3) list: [path/to/imgs1, path/to/imgs2, ..]
+path: /home/lenovo/data/liujiaji/Datasets/VPMBGI/images  # dataset root dir
+train: train  # train images (relative to 'path') 128 images
+val: val  # val images (relative to 'path') 128 images
+test: test # test images (optional)
+ 
+#  Classes -- VPMBGI - 玻璃材质的缺陷
+names:
+  0: iso_broken_glass
+
+
+
+
+# path: /home/lenovo/data/liujiaji/FINet/data/SFID/images  # dataset root dir
+# train: train  # train images (relative to 'path') 128 images
+# val:   # val images (relative to 'path') 128 images
+# test: test # test images (optional)
+
+#  # Classes -- SFID
+# names:
+#   1: insulator
+#   0: defect
+
+
+# path: /home/lenovo/data/liujiaji/yolov8/ultralytics-main/dataset/albu_images  # dataset root dir
+# train: train  # train images (relative to 'path') 128 images
+# val: val  # val images (relative to 'path') 128 images
+# test: test # test images (optional)
+
+# # Classes  -  UPID 数据集是有问题的
+# names:
+#   0: normal_insulator
+#   1: defective_insulators
+#   2: insulators_fault
+
+
+# path: /home/lenovo/data/liujiaji/Datasets/IDID/images  # dataset root dir
+# train: train  # train images (relative to 'path') 128 images
+# val: val  # val images (relative to 'path') 128 images
+# test: test # test images (optional)
+
+# # Classes  -  IDID  
+# names:
+#   0: insulator
+#   1: Broken
+#   2: Flashover
+
+# path: /home/lenovo/data/liujiaji/Datasets/Einsulator/images  # dataset root dir
+# train: train  # train images (relative to 'path') 128 images
+# val: val  # val images (relative to 'path') 128 images
+# test: test # test images (optional)
+
+# # Classes  -  Einsulator  
+# names:
+#   0: burn
+#   1: defect
+#   2: dirty
+
+ 
+# # Train/val/test sets as 1) dir: path/to/imgs, 2) file: path/to/imgs.txt, or 3) list: [path/to/imgs1, path/to/imgs2, ..]
+# path: /home/lenovo/data/liujiaji/Datasets/Epin/images  # dataset root dir
+# train: train  # train images (relative to 'path') 128 images
+# val: val   # val images (relative to 'path') 128 images
+# test:  # test images (optional)
+ 
+# ####  Classes -- Epin
+# names:
+#   0: uncertain
+#   1: bad
+#   2: good
+
+
+# Train/val/test sets as 1) dir: path/to/imgs, 2) file: path/to/imgs.txt, or 3) list: [path/to/imgs1, path/to/imgs2, ..]
+# path: /home/lenovo/data/liujiaji/Datasets/pin/images  # dataset root dir
+# train: train  # train images (relative to 'path') 128 images
+# val: val   # val images (relative to 'path') 128 images
+# test: test # test images (optional)
+ 
+# ####  Classes -- pin
+# names:
+#   0: defect
+#   1: rust
+#   2: uninstall
+
+
+# path: /home/lenovo/data/liujiaji/Datasets/BirdProtection/images  # dataset root dir
+# train: train  # train images (relative to 'path') 128 images
+# val: val  # val images (relative to 'path') 128 images
+# test: test # test images (optional)
+
+# # Classes  -  BirdProtection
+# names:
+#   0: damaged
+#   1: defect
+#   2: loose
+
+
+# path: /home/lenovo/data/liujiaji/Datasets/AccessEnvironment/images  # dataset root dir
+# train: train  # train images (relative to 'path') 128 images
+# val: val  # val images (relative to 'path') 128 images
+# test: test # test images (optional)
+
+# # Classes  -  AccessEnvironment
+# names:
+#   0: distanceWrong
+
+
+# path: /home/lenovo/data/liujiaji/Datasets/TowerFoundation/images  # dataset root dir
+# train: train  # train images (relative to 'path') 128 images
+# val: val  # val images (relative to 'path') 128 images
+# test: test # test images (optional)
+
+# # Classes  -  TowerFoundation
+# names:
+#   0: debrisHeap
+#   1: soilExtraction
+
+# path: /home/lenovo/data/liujiaji/Datasets/HeavyHammer/images  # dataset root dir
+# train: train  # train images (relative to 'path') 128 images
+# val: val  # val images (relative to 'path') 128 images
+# test: test # test images (optional)
+
+# # Classes  -  HeavyHammer
+# names:
+#   0: rust
+#   # 1: defect
+
+# path: /home/lenovo/data/liujiaji/Datasets/Hammer/images  # dataset root dir
+# train: train  # train images (relative to 'path') 128 images
+# val: val  # val images (relative to 'path') 128 images
+# test: test # test images (optional)
+
+# # Classes  -  Hammer
+# names:
+#   0: drop
+#   1: rust
+#   2: skew
+#   3: slip
+
+
+# path: /home/lenovo/data/liujiaji/Datasets/ForeignBody/images  # dataset root dir
+# train: train  # train images (relative to 'path') 128 images
+# val: val  # val images (relative to 'path') 128 images
+# test: test # test images (optional)
+
+# # Classes  -  ForeignBody
+# names:
+#   0: nest
+#   1: balloon
