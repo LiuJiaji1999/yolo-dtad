@@ -3,13 +3,13 @@ warnings.filterwarnings('ignore')
 from ultralytics import YOLO
 
 if __name__ == '__main__':
-    model = YOLO('runs/train/exp76/weights/best.pt')
-    model.val(data='/home/lenovo/data/liujiaji/yolov8/powerdata.yaml',
+    model = YOLO('/home/lenovo/data/liujiaji/powerGit/yolov8/runs/8.1.9/exp112/weights/best.pt')
+    model.val(data='/home/lenovo/data/liujiaji/YOLO-DTAD/dataset/powerdata.yaml',
               split='test',
-              imgsz=640, # 默认640
+              imgsz=800, # 默认640
               batch=16,
               # rect=False,
               save_json=True, # if you need to cal coco metrice
               project='runs/test',
-              name='exp76',
+              name='exp112',
               )
