@@ -16,7 +16,7 @@ This is our PyTorch implementation of the paper "[`YOLO-DTAD: Dynamic Task Align
 First, clone the project and configure the environment.
 
 ```bash
-git clone 
+git clone https://github.com/LiuJiaji1999/yolo-dtad.git 
 ultralytics版本为8.1.9,在ultralytics/__init__.py中的__version__有标识.              
 pip install -r
     # 3090 单卡
