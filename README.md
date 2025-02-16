@@ -4,7 +4,7 @@
 This is our PyTorch implementation of the paper "[`YOLO-DTAD: Dynamic Task Alignment Detection Model for Multi-Category Power Defects Image`](https://ieeexplore.ieee.org/document/10884832)" published in ***IEEE Transactions on Instrumentation and Measurement***.
 
 <div align="center">
-    <img src="LiteYOLO-ID_RE.png" width="1000" alt="LiteYOLO-ID">
+    <img src="img/YOLO_DTAD.png" width="1000" alt="YOLO-DTAD">
 </div>
 
 
@@ -14,22 +14,28 @@ This is our PyTorch implementation of the paper "[`YOLO-DTAD: Dynamic Task Align
 <summary>Install</summary>
 
 First, clone the project and configure the environment.
-[**Python>=3.7.0**](https://www.python.org/), [**PyTorch>=1.7**](https://pytorch.org/get-started/locally/).
 
 ```bash
-git clone https://github.com/LuYang-2023/Insulator-defect-detection.git  # clone
-cd Insulator-defect-detection
-pip install -r requirements.txt  # install
+git clone 
+ultralytics版本为8.1.9,在ultralytics/__init__.py中的__version__有标识.              
+pip install -r
+    # 3090 单卡
+    python: 3.8.18 / 3.8.16
+    torch:  1.12.0+cu113 / 1.13.1+cu117
+    torchvision: 0.13.0+cu113 / 0.14.1+cu117  
+    numpy: 1.22.3
+    timm: 0.9.8                 
+    mmcv: 2.1.0                
+    mmengine: 0.9.0  / 0.10.3    
 ```
+
 </details>
 
 <details open>
 <summary>Train</summary>
 
-
-
 ```python
-python train.py --cfg models/LiteYOLO-ID.yaml --data data/mydata.yaml
+python train.py
 ```
 </details>
 
@@ -37,9 +43,8 @@ python train.py --cfg models/LiteYOLO-ID.yaml --data data/mydata.yaml
 <details>
 <summary>Test</summary>
 
-
 ```bash
-python val.py --data data/mydata.yaml --weights best.pt --task test
+python val.py
 ```
 </details>
 
@@ -50,30 +55,27 @@ python val.py --data data/mydata.yaml --weights best.pt --task test
 The lightweight convolutional module EGC incorporates the design philosophies of GhostNet and C2f modules, significantly enhancing the capture of key information in detection targets through the ECA attention mechanism. The structural diagram of the EGC module is shown below.
 
 <div align="center">
-    <img src="EGC.png" width="300" alt="EGC module">
+    <img src="img/DTADH_1.png" width="500" alt="DTADH">
 </div>
 
+<div align="center">
+    <img src="img/DTADH_2.png" width="500" alt="DTADH">
+</div>
 
 ## Experimental flow chart
 
 <div align="center">
-    <img src="chart_experiment.png" width="900" alt="Experimental procedure">
+    <img src="img/workflow.png" width="700" alt="workflow">
 </div>
 
-## Actual detection output on Jetson TX2 NX
-The hardware and software configuration of the Jetson TX2 NX includes an NVIDIA Pascal GPU, with PyTorch version 1.8.0 and CUDA version 10.2.
-
-<div align="center">
-    <img src="jetson_tx2_nx.png" width="800" alt="jetson_tx2_nx">
-</div>
 
 ## Detection result
 <div align="center">
-    <img src="Comparison_chart_of_detection_results.png" width="800" alt="Comparison chart of test results">
+    <img src="img/comparison_result.png" width="800" alt="comparison result">
 </div>
 
 <div align="center">
-    <img src="LiteYOLO-ID_detection_result_diagram.png" width="800" alt="LiteYOLO-ID detection result diagram">
+    <img src="img/detection_result.png" width="800" alt="detection result">
 </div>
 
 
@@ -95,23 +97,6 @@ If you use this code or article in your research, please cite it using the follo
 ```
 
 
-## Author's Contact
-Email：liujiajiran@163.com
-
-
-### 基于[ultralytics](https://github.com/ultralytics/ultralytics)的 YOLO-DTAD     
-```bash
-ultralytics版本为8.1.9,在ultralytics/__init__.py中的__version__有标识.              
-我的实验环境:
-    python: 3.8.18 / 3.8.16
-    torch:  1.12.0+cu113 / 1.13.1+cu117
-    torchvision: 0.13.0+cu113 / 0.14.1+cu117  
-    numpy: 1.22.3
-    timm: 0.9.8                 
-    mmcv: 2.1.0                
-    mmengine: 0.9.0  / 0.10.3    
-
-```
 #### 子目录下的文件说明
 ```bash
 1. train.py ：训练模型的脚本
