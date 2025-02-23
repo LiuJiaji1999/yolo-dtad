@@ -86,14 +86,13 @@ If you use this code or article in your research, please cite it using the follo
 @ARTICLE{10884832,
   author={Jiao, Runhai and Liu, Jiaji and Li, Kaihang and Qiao, Ruojiao and Liu, Yanzhi and Zhang, Wenbiao},
   journal={IEEE Transactions on Instrumentation and Measurement}, 
-  title={YOLO-DTAD: Dynamic Task Alignment Detection Model for Multi-Category Power Defects Image}, 
+  title={YOLO–DTAD: Dynamic Task Alignment Detection Model for Multicategory Power Defects Image}, 
   year={2025},
-  volume={},
+  volume={74},
   number={},
-  pages={1-1},
-  keywords={Feature extraction;Head;YOLO;Insulators;Autonomous aerial vehicles;Adaptation models;Accuracy;Location awareness;Inspection;Defect detection;multi-category power defects;single-stage object detection;task interaction;Exponential Moving Average},
+  pages={1-14},
+  keywords={Feature extraction;Head;YOLO;Insulators;Autonomous aerial vehicles;Adaptation models;Accuracy;Location awareness;Inspection;Defect detection;Exponential moving average (EMA);multicategory power defects;single-stage object detection;task interaction},
   doi={10.1109/TIM.2025.3541692}}
-
 ```
 
 
