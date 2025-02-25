@@ -298,7 +298,7 @@ class UDABaseTrainer:
         # self.train_loader = self.get_dataloader(self.trainset, batch_size=batch_size, rank=RANK, mode="train")
         
 
-        print(" uda_trainer ******* Unsupervised Domain Adaptation training")
+        print(" ************************ uda_trainer")
         self.train_loader , self.target_loader = self.uda_get_dataloader(self.trainset,self.targetset,batch_size=batch_size, rank=RANK, mode_S="train", mode_T="target")
        
         if RANK in (-1, 0):
@@ -376,13 +376,13 @@ class UDABaseTrainer:
             # pbar = enumerate(self.train_loader)
             pbar = enumerate(zip(self.train_loader,self.target_loader))
 
-            data_iter_S = iter(self.train_loader)
-            data_iter_T = iter(self.target_loader)
+            # data_iter_S = iter(self.train_loader)
+            # data_iter_T = iter(self.target_loader)
 
-            s1 = next(data_iter_S)
-            print(len(s1))
-            t1 = next(data_iter_T)
-            print(len(t1))
+            # s1 = next(data_iter_S)
+            # print('data_iter_S',len(s1))
+            # t1 = next(data_iter_T)
+            # print('data_iter_T',len(t1))
 
             # Update dataloader attributes (optional)
             if epoch == (self.epochs - self.args.close_mosaic):

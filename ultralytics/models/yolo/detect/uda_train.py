@@ -62,7 +62,7 @@ class UDADetectionTrainer(UDABaseTrainer):
     def uda_get_dataloader(self, dataset_path_S,dataset_path_T, batch_size=16, rank=0, mode_S="train", mode_T="target"):
         """Construct and return dataloader."""
         assert mode_S ,mode_T in ["train", "val","target"]
-        print('using uda_get_dataloader!')
+        print('************************ uda_train/using uda_get_dataloader')
         with torch_distributed_zero_first(rank):  # init dataset *.cache only once if DDP
             dataset_S = self.build_dataset(dataset_path_S, mode_S, batch_size)
             dataset_T = self.build_dataset(dataset_path_T, mode_T, batch_size)

@@ -126,7 +126,7 @@ def build_dataloader(dataset, batch, workers, shuffle=True, rank=-1):
 
 def uda_build_dataloader(dataset_S, dataset_T, batch, workers, shuffle=True, rank=-1):
     """Return an InfiniteDataLoader or DataLoader for training or validation set."""
-    print('uda_build ******** using uda_build_dataloader!')
+    print('******************************** uda_build/uda_build_dataloader!')
     batch = min(batch, len(dataset_S))
 
     half_batch = batch // 2
