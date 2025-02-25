@@ -397,28 +397,29 @@ class UDABaseTrainer:
             self.tloss = None
             self.optimizer.zero_grad()
 
-            for i, batch in pbar:
-                batch_S = batch[0]
-                batch_T = batch[1]
-                imgs_s = batch_S['img']
-                # 处理 targets_s
-                batch_idx = batch_S['batch_idx']
-                bboxes = batch_S['bboxes']
-                cls = batch_S['cls']  # (num_targets,) 去掉额外的维度
-                # 合并为 (batch_idx, class_id, x, y, w, h)
-                targets_s = torch.cat((
-                    batch_idx.unsqueeze(1),  # image_id
-                    cls,        # class_id
-                    bboxes                   # x1, y1, x2, y2
-                ), dim=1).to(self.device)  # 转换为 (N, 6)
+            for i, (batch,target_batch) in pbar:
 
-                imgs_t = batch_T['img']
+                # batch_S = batch[0]
+                # batch_T = batch[1]
+                # imgs_s = batch_S['img']
+                # # 处理 targets_s
+                # batch_idx = batch_S['batch_idx']
+                # bboxes = batch_S['bboxes']
+                # cls = batch_S['cls']  # (num_targets,) 去掉额外的维度
+                # # 合并为 (batch_idx, class_id, x, y, w, h)
+                # targets_s = torch.cat((
+                #     batch_idx.unsqueeze(1),  # image_id
+                #     cls,        # class_id
+                #     bboxes                   # x1, y1, x2, y2
+                # ), dim=1).to(self.device)  # 转换为 (N, 6)
+
+                # imgs_t = batch_T['img']
                 self.run_callbacks("on_train_batch_start")
                 # Warmup
                 ni = i + nb * epoch
 
-                imgs_s = imgs_s.to(self.device, non_blocking=True).float() / 255  # uint8 to float32, 0-255 to 0.0-1.0
-                imgs_t = imgs_t.to(self.device, non_blocking=True).float() / 255  # uint8 to float32, 0-255 to 0.0-1.0
+                # imgs_s = imgs_s.to(self.device, non_blocking=True).float() / 255  # uint8 to float32, 0-255 to 0.0-1.0
+                # imgs_t = imgs_t.to(self.device, non_blocking=True).float() / 255  # uint8 to float32, 0-255 to 0.0-1.0
 
                 if ni <= nw:
                     xi = [0, nw]  # x interp
@@ -438,7 +439,34 @@ class UDABaseTrainer:
                 # Forward 
                 with torch.cuda.amp.autocast(self.amp):
                     batch = self.preprocess_batch(batch)
-                    self.loss, self.loss_items = self.model(batch)
+                    target_batch = self.preprocess_batch(target_batch)
+                    
+                    # 源域前向传播
+                    self.source_loss, self.source_loss_items = self.model(batch)
+                    # 目标域前向传播
+                    self.target_output = self.model(target_batch, return_feature_maps=True)  # 假设模型支持返回特征图
+
+                    
+                   # 提取特定特征图（假设特征图是模型的中间输出）
+                    source_feature_maps = self.model.get_feature_maps(batch)  # 假设模型支持获取特征图
+                    target_feature_maps = self.model.get_feature_maps(target_batch)
+
+                    # 计算特征图的MSE损失
+                    mse_loss = torch.nn.functional.mse_loss(source_feature_maps, target_feature_maps)
+
+                    # 计算最终损失
+                    lambda_weight = 0.1  # 超参数，用于平衡源域损失和特征图MSE损失
+                    self.loss = self.source_loss + lambda_weight * mse_loss
+                    self.loss_items = self.source_loss_items  # 可选：是否将MSE损失也加入loss_items
+
+                    # 多GPU训练时的损失调整
+                    if RANK != -1:
+                        self.loss *= world_size
+
+                    # 更新平均损失
+                    self.tloss = (
+                        (self.tloss * i + self.loss_items) / (i + 1) if self.tloss is not None else self.loss_items
+                    )
 
                     # r = ni / max_iterations
                     # delta = 2 / (1 + math.exp(-5. * r)) - 1
@@ -535,14 +563,8 @@ class UDABaseTrainer:
                     # gamma = 1
                     # self.total_loss = self.loss + self.loss_daca * gamma
 
-                    if RANK != -1:
-                        self.loss *= world_size
-                    self.tloss = (
-                        (self.tloss * i + self.loss_items) / (i + 1) if self.tloss is not None else self.loss_items
-                    )
-                    self.tloss_daca = (
-                        (self.tloss_daca * i + self.loss_items_daca) / (i + 1) if self.tloss_daca is not None else self.loss_items_daca
-                    )
+              
+                    
 
                 # Backward
                 self.scaler.scale(self.total_loss).backward()
