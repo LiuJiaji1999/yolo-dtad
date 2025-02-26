@@ -11,7 +11,7 @@ if __name__ == '__main__':
     model.train(data='/home/lenovo/data/liujiaji/powerGit/dayolo/domain/sim10k_to_cityscapes.yaml',             
                 cache=False,
                 imgsz=640,
-                epochs=2,
+                epochs=100,
                 batch=8,
                 close_mosaic=10,
                 workers=8,
