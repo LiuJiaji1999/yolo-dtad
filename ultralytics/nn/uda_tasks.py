@@ -96,17 +96,16 @@ class BaseModel(nn.Module):
         for m in self.model:
             if m.f != -1:  # if not from previous layer
                 x = y[m.f] if isinstance(m.f, int) else [x if j == -1 else y[j] for j in m.f]  # from earlier layers
+            
             if profile:
                 self._profile_one_layer(m, x, dt)
+
             if layers:
                 print(f"predect.py ⚠️ Computing features at stage {m.i}")
-                if m.i in [2,4]:
+                if m.i in [2, 4, 6, 8, 9]:  # 判断层数是否属于 [2, 4, 6, 8, 9]
                     print(f'Saving features at stage {m.i}')
-                    out_feas_list.append(m(x))
-                    # print(out_feas_list)
-                    out_feas = torch.stack(out_feas_list).squeeze(0)
-                    return out_feas
-                # return get_features(x, m.type, m.i)
+                    out_feas_list.append(m(x))  # 保存当前层的特征图
+
             if hasattr(m, 'backbone'):
                 x = m(x)
                 for _ in range(5 - len(x)):
@@ -131,12 +130,17 @@ class BaseModel(nn.Module):
             #     x = m(x)  # run    
             if visualize:     
                 feature_visualization(x, m.type, m.i, save_dir=visualize)
+
             if embed and m.i in embed:
                 embeddings.append(nn.functional.adaptive_avg_pool2d(x, (1, 1)).squeeze(-1).squeeze(-1))  # flatten
                 if m.i == max(embed):
                     return torch.unbind(torch.cat(embeddings, 1), dim=0)
-            
-            
+        
+        # 返回所有保存的特征图
+        if layers and out_feas_list:
+            out_feas = torch.stack(out_feas_list).squeeze(0)  # 将所有特征图堆叠为一个张量
+            return out_feas
+
         return x
 
     def _predict_augment(self, x):
