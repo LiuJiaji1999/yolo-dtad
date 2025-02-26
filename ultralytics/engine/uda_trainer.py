@@ -453,14 +453,6 @@ class UDABaseTrainer:
                     self.source_feature_dict = self.model(batch_s['img'],layers=True)  
                     self.target_feature_dict = self.model(batch_t['img'],layers=True)
 
-                    # # 检查批次大小
-                    # min_batch_size = min(self.source_feature.size(0), self.target_feature.size(0))
-                    # self.source_feature = self.source_feature[:min_batch_size]
-                    # self.target_feature = self.target_feature[:min_batch_size]
-
-                    # print('source feature ',self.source_feature.shape) # torch.Size([ 4, 96, 160, 160]
-                    # print('target feature ',self.target_feature.shape) # torch.Size([ 4, 96, 160, 160]
-
                     # 判断源域和目标域特征是否为空
                     for layer in [2, 4, 6, 8, 9]:
                         source_feas = self.source_feature_dict[layer]
@@ -470,7 +462,6 @@ class UDABaseTrainer:
                         min_batch_size = min(source_feas.size(0), target_feas.size(0))
                         source_fea = source_feas[:min_batch_size]
                         target_fea = target_feas[:min_batch_size]
-
 
                         if source_fea is not None and target_fea is not None:
                             # 检查源域和目标域特征的形状是否一致
@@ -488,7 +479,7 @@ class UDABaseTrainer:
                             # 如果源域或目标域特征为空，跳过计算
                             print('WARNING  source target features is None!!!')
                             mse_loss = 0.0  # 或者根据需求设置为其他默认值
-
+                    print('mse_loss: ',mse_loss)
                     # 计算最终损失
                     lambda_weight = 0.1  # 超参数，用于平衡源域损失和特征图MSE损失
                     self.loss = self.source_loss + lambda_weight * mse_loss
