@@ -93,7 +93,6 @@ class BaseModel(nn.Module):
         y, dt, embeddings = [], [], []  # outputs y是指保存self.save的特征图
         # print('self.save 是  ',self.save) #[4, 6, 9, 12, 15, 18, 21]
 
-
         for m in self.model:
             if m.f != -1:  # if not from previous layer
                 x = y[m.f] if isinstance(m.f, int) else [x if j == -1 else y[j] for j in m.f]  # from earlier layers
@@ -116,9 +115,7 @@ class BaseModel(nn.Module):
                 x = m(x)  # run
                 y.append(x if m.i in self.save else None)  # save output
             if layers:
-                get_features(x, m.type, m.i)
-                # if m.i in [2,4,6,8,9]:
-                #     out_layers.append(x)
+                return get_features(x, m.type, m.i)
 
             # if m.__class__.__name__ in ['Detect']:
             #     # Only pass pseudo and delta to the detection head as opposed to the other layers
@@ -132,11 +129,6 @@ class BaseModel(nn.Module):
                 embeddings.append(nn.functional.adaptive_avg_pool2d(x, (1, 1)).squeeze(-1).squeeze(-1))  # flatten
                 if m.i == max(embed):
                     return torch.unbind(torch.cat(embeddings, 1), dim=0)
-
-        # print('y 是模型输出',y)
-        # print('dt 是模型',dt)
-        # print('embeddings 特征向量列表',embeddings)
-
         return x
 
     def _predict_augment(self, x):

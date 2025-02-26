@@ -58,7 +58,7 @@ from ultralytics.utils.plotting import uda_output_to_target, plot_images
 import copy
 import albumentations as A
 from ultralytics.utils.daca import get_best_region, transform_img_bboxes
-
+import torch.nn.functional as F
 
 class UDABaseTrainer:
     """
@@ -448,10 +448,14 @@ class UDABaseTrainer:
 
                     # 仅 源域和目标域图像 的前向传播，返回特征图值
                     self.source_feature = self.model(batch_s['img'],layers=True)  
-                    self.target_feature = self.model(batch_t['img'],layers=True)  
+                    self.target_feature = self.model(batch_t['img'],layers=True)
+                    if self.source_feature.shape != self.target_feature.shape:
+                        # 调整 target_feat 的尺寸，使其匹配 source_feat
+                        self.target_feature = F.interpolate(self.target_feature, size=self.source_feature.shape[2:], mode="bilinear", align_corners=False)
+
                     
                     # 计算特征图的MSE损失
-                    mse_loss = torch.nn.functional.mse_loss(self.source_feature, self.target_feature)
+                    mse_loss = F.mse_loss(self.source_feature, self.target_feature)
                     
                     # 计算最终损失
                     lambda_weight = 0.1  # 超参数，用于平衡源域损失和特征图MSE损失
@@ -461,7 +465,6 @@ class UDABaseTrainer:
                     # 多GPU训练时的损失调整
                     if RANK != -1:
                         self.loss *= world_size
-
                     # 更新平均损失
                     self.tloss = (
                         (self.tloss * i + self.loss_items) / (i + 1) if self.tloss is not None else self.loss_items
