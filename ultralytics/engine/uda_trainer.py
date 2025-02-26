@@ -467,8 +467,6 @@ class UDABaseTrainer:
                         # 如果源域或目标域特征为空，跳过计算
                         mse_loss = 0.0  # 或者根据需求设置为其他默认值
 
-                    # 计算特征图的MSE损失
-                    mse_loss = F.mse_loss(self.source_feature, self.target_feature)
                     
                     # 计算最终损失
                     lambda_weight = 0.1  # 超参数，用于平衡源域损失和特征图MSE损失
