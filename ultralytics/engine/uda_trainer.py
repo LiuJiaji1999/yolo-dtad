@@ -442,19 +442,17 @@ class UDABaseTrainer:
                     batch_t = self.preprocess_batch(batch_T)
                     
                     # batch 是字典就计算loss,不是字典就计算 预测值
+
+                    # 源域的检测损失
                     self.source_loss, self.source_loss_items = self.model(batch_s)
-                    # 目标域前向传播
-                    self.target_feature = self.model(batch_t['img'],layers=True)  # 假设模型支持返回特征图
 
+                    # 仅 源域和目标域图像 的前向传播，返回特征图值
+                    self.source_feature = self.model(batch_s['img'],layers=True)  
+                    self.target_feature = self.model(batch_t['img'],layers=True)  
                     
-                   # 提取特定特征图（假设特征图是模型的中间输出）
-                    # source_feature_maps = self.model.get_feature_maps(batch)  # 假设模型支持获取特征图
-                    # target_feature_maps = self.model.get_feature_maps(target_batch)
-
                     # 计算特征图的MSE损失
-                    # mse_loss = torch.nn.functional.mse_loss(source_feature_maps, target_feature_maps)
+                    mse_loss = torch.nn.functional.mse_loss(self.source_feature, self.target_feature)
                     
-                    mse_loss =  1
                     # 计算最终损失
                     lambda_weight = 0.1  # 超参数，用于平衡源域损失和特征图MSE损失
                     self.loss = self.source_loss + lambda_weight * mse_loss

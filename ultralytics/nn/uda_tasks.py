@@ -91,7 +91,7 @@ class BaseModel(nn.Module):
         :param float delta: The shifting weight to assign progressively more importance to C_comb
         """
         y, dt, embeddings = [], [], []  # outputs y是指保存self.save的特征图
-        print('self.save 是  ',self.save) #[4, 6, 9, 12, 15, 18, 21]
+        # print('self.save 是  ',self.save) #[4, 6, 9, 12, 15, 18, 21]
 
 
         for m in self.model:
