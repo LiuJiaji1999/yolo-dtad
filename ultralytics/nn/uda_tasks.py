@@ -14,6 +14,7 @@ from ultralytics.utils import DEFAULT_CFG_DICT, DEFAULT_CFG_KEYS, LOGGER, colors
 from ultralytics.utils.checks import check_requirements, check_suffix, check_yaml
 from ultralytics.utils.loss import v8ClassificationLoss, v8DetectionLoss, v8OBBLoss, v8PoseLoss, v8SegmentationLoss
 from ultralytics.utils.plotting import feature_visualization,feature_visualization_all
+from ultralytics.utils.daca import get_features
 from ultralytics.utils.torch_utils import (
     fuse_conv_and_bn,
     fuse_deconv_and_bn,
@@ -50,7 +51,7 @@ except ImportError:
 
 class BaseModel(nn.Module):
     """The BaseModel class serves as a base class for all the models in the Ultralytics YOLO family."""
-
+    print('******************* uda_task/forward')
     def forward(self, x, *args, **kwargs):
         """
         Forward pass of the model on a single scale. Wrapper for `_forward_once` method.
@@ -65,7 +66,7 @@ class BaseModel(nn.Module):
             return self.loss(x, *args, **kwargs)
         return self.predict(x, *args, **kwargs)
 
-    def predict(self, x, profile=False, visualize=False, augment=False, embed=None,pseudo=False,delta=1.0):
+    def predict(self, x, profile=False, visualize=False, augment=False, embed=None,layers=False):
         """
         Perform a forward pass through the network.
 
@@ -81,15 +82,17 @@ class BaseModel(nn.Module):
         """
         if augment:
             return self._predict_augment(x)
-        return self.uda_predict_once(x, profile, visualize, embed,pseudo,delta)
+        return self.uda_predict_once(x, profile, visualize, embed,layers)
 
    
-    def uda_predict_once(self, x, profile=False, visualize=False, embed=None,pseudo=False,delta=1.0):
+    def uda_predict_once(self, x, profile=False, visualize=False, embed=None,layers=False):
         """
         :param bool pseudo: Whether to perform progressive pseudo labelling
         :param float delta: The shifting weight to assign progressively more importance to C_comb
         """
-        y, dt, embeddings = [], [], []  # outputs
+        y, dt, embeddings = [], [], []  # outputs y是指保存self.save的特征图
+        print('self.save 是  ',self.save) #[4, 6, 9, 12, 15, 18, 21]
+
 
         for m in self.model:
             if m.f != -1:  # if not from previous layer
@@ -111,20 +114,29 @@ class BaseModel(nn.Module):
                 x = x[-1]
             else:
                 x = m(x)  # run
-                
+                y.append(x if m.i in self.save else None)  # save output
+            if layers:
+                get_features(x, m.type, m.i)
+                # if m.i in [2,4,6,8,9]:
+                #     out_layers.append(x)
+
             # if m.__class__.__name__ in ['Detect']:
             #     # Only pass pseudo and delta to the detection head as opposed to the other layers
             #     x = m(x, pseudo, delta)
             # else:
             #     x = m(x)  # run
-
-                y.append(x if m.i in self.save else None)  # save output
+                
             if visualize:     
                 feature_visualization(x, m.type, m.i, save_dir=visualize)
             if embed and m.i in embed:
                 embeddings.append(nn.functional.adaptive_avg_pool2d(x, (1, 1)).squeeze(-1).squeeze(-1))  # flatten
                 if m.i == max(embed):
                     return torch.unbind(torch.cat(embeddings, 1), dim=0)
+
+        # print('y 是模型输出',y)
+        # print('dt 是模型',dt)
+        # print('embeddings 特征向量列表',embeddings)
+
         return x
 
     def _predict_augment(self, x):

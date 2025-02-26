@@ -20,6 +20,21 @@ from tqdm import tqdm
 import albumentations as A
 
 
+
+def get_features(x, module_type, stage):
+
+    for m in ["Detect", "Pose", "Segment"]:
+        if m in module_type:
+            return
+    batch, channels, height, width = x.shape  # batch, channels, height, width
+    
+    out_feas = []
+    if stage in [2,4,6,8,9]:
+        out_feas.append(x)
+    
+    return out_feas
+
+
 def get_best_region(out, imgs_t):
     region_t = imgs_t[:, :, 0:int(imgs_t.shape[3]/2), 0:int(imgs_t.shape[2]/2)] # initialize in case no bboxes are detected
     best_side = 'topleft'  # initialize in case no bboxes are detected 左上角

@@ -397,10 +397,10 @@ class UDABaseTrainer:
             self.tloss = None
             self.optimizer.zero_grad()
 
-            for i, (batch,target_batch) in pbar:
+            for i, (batch_S,batch_T) in pbar:
 
                 # batch_S = batch[0]
-                # batch_T = batch[1]
+                # batch_S = batch[1]
                 # imgs_s = batch_S['img']
                 # # 处理 targets_s
                 # batch_idx = batch_S['batch_idx']
@@ -438,22 +438,23 @@ class UDABaseTrainer:
                 
                 # Forward 
                 with torch.cuda.amp.autocast(self.amp):
-                    batch = self.preprocess_batch(batch)
-                    target_batch = self.preprocess_batch(target_batch)
+                    batch_s = self.preprocess_batch(batch_S)
+                    batch_t = self.preprocess_batch(batch_T)
                     
-                    # 源域前向传播
-                    self.source_loss, self.source_loss_items = self.model(batch)
+                    # batch 是字典就计算loss,不是字典就计算 预测值
+                    self.source_loss, self.source_loss_items = self.model(batch_s)
                     # 目标域前向传播
-                    self.target_output = self.model(target_batch, return_feature_maps=True)  # 假设模型支持返回特征图
+                    self.target_feature = self.model(batch_t['img'],layers=True)  # 假设模型支持返回特征图
 
                     
                    # 提取特定特征图（假设特征图是模型的中间输出）
-                    source_feature_maps = self.model.get_feature_maps(batch)  # 假设模型支持获取特征图
-                    target_feature_maps = self.model.get_feature_maps(target_batch)
+                    # source_feature_maps = self.model.get_feature_maps(batch)  # 假设模型支持获取特征图
+                    # target_feature_maps = self.model.get_feature_maps(target_batch)
 
                     # 计算特征图的MSE损失
-                    mse_loss = torch.nn.functional.mse_loss(source_feature_maps, target_feature_maps)
-
+                    # mse_loss = torch.nn.functional.mse_loss(source_feature_maps, target_feature_maps)
+                    
+                    mse_loss =  1
                     # 计算最终损失
                     lambda_weight = 0.1  # 超参数，用于平衡源域损失和特征图MSE损失
                     self.loss = self.source_loss + lambda_weight * mse_loss
@@ -567,7 +568,7 @@ class UDABaseTrainer:
                     
 
                 # Backward
-                self.scaler.scale(self.total_loss).backward()
+                self.scaler.scale(self.source_loss).backward()
 
                 # Optimize - https://pytorch.org/docs/master/notes/amp_examples.html
                 if ni - last_opt_step >= self.accumulate:
@@ -591,7 +592,7 @@ class UDABaseTrainer:
                 if RANK in (-1, 0):
                     pbar.set_description(
                         ("%11s" * 2 + "%11.4g" * (2 + loss_len))
-                        % (f"{epoch + 1}/{self.epochs}", mem, *losses, targets_s.shape[0], imgs_s["img"].shape[-1])
+                        % (f"{epoch + 1}/{self.epochs}", mem, *losses, batch_s["cls"].shape[0], batch_s["img"].shape[-1])
                     )
                     self.run_callbacks("on_batch_end")
                     # if self.args.plots and ni in self.plot_idx:

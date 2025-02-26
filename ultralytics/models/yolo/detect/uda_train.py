@@ -11,7 +11,8 @@ import torch.nn as nn
 # from ultralytics.engine.trainer import BaseTrainer
 
 from ultralytics.models import yolo
-from ultralytics.nn.tasks import DetectionModel
+# from ultralytics.nn.tasks import DetectionModel
+from ultralytics.nn.uda_tasks import DetectionModel
 from ultralytics.utils import LOGGER, RANK
 from ultralytics.utils.plotting import plot_images, plot_labels, plot_results
 from ultralytics.utils.torch_utils import de_parallel, torch_distributed_zero_first
