@@ -45,7 +45,7 @@ def get_features(x, module_type, stage):
     out_feas_list = []
 
     # 如果层数属于 [2, 4, 6, 8, 9]，保存特征图
-    if stage in [2, 4, 6, 8, 9]:
+    if stage in ['2', '4', '6', '8', '9']:
         print(f"Saving features at stage {stage}")  # 打印当前层数
         out_feas_list.append(x)
 

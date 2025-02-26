@@ -445,6 +445,8 @@ class UDABaseTrainer:
 
                     # 源域的检测损失
                     self.source_loss, self.source_loss_items = self.model(batch_s)
+                    # print('源域实际loss',self.source_loss)
+                    # print('源域实际loss_items',self.source_loss_items)
 
                     # 仅 源域和目标域图像 的前向传播，返回特征图值
                     self.source_feature = self.model(batch_s['img'],layers=True)  
@@ -465,13 +467,15 @@ class UDABaseTrainer:
                         mse_loss = F.mse_loss(self.source_feature, self.target_feature)
                     else:
                         # 如果源域或目标域特征为空，跳过计算
+                        print('WARNING  source target features is None!!!')
                         mse_loss = 0.0  # 或者根据需求设置为其他默认值
 
-                    
                     # 计算最终损失
                     lambda_weight = 0.1  # 超参数，用于平衡源域损失和特征图MSE损失
                     self.loss = self.source_loss + lambda_weight * mse_loss
-                    self.loss_items = self.source_loss_items  # 可选：是否将MSE损失也加入loss_items
+                    self.loss_items = self.source_loss_items + mse_loss # 可选：是否将MSE损失也加入loss_items
+
+                    print('最终实际的loss_items',self.loss_items)
 
                     # 多GPU训练时的损失调整
                     if RANK != -1:
@@ -577,10 +581,9 @@ class UDABaseTrainer:
                     # self.total_loss = self.loss + self.loss_daca * gamma
 
               
-                    
-
+                
                 # Backward
-                self.scaler.scale(self.source_loss).backward()
+                self.scaler.scale(self.loss).backward()
 
                 # Optimize - https://pytorch.org/docs/master/notes/amp_examples.html
                 if ni - last_opt_step >= self.accumulate:
