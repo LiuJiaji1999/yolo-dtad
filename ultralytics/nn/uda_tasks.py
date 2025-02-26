@@ -91,7 +91,7 @@ class BaseModel(nn.Module):
         """
         y, dt, embeddings = [], [], []  # outputs y是指保存self.save的特征图
         # print('self.save 是  ',self.save) #[4, 6, 9, 12, 15, 18, 21]
-        out_feas_list = []
+        out_feas_dict = {}
 
         for m in self.model:
             if m.f != -1:  # if not from previous layer
@@ -104,8 +104,10 @@ class BaseModel(nn.Module):
                 print(f"predect.py ⚠️ Computing features at stage {m.i}")
                 if m.i in [2, 4, 6, 8, 9]:  # 判断层数是否属于 [2, 4, 6, 8, 9]
                     print(f'Saving features at stage {m.i}')
-                    out_feas_list.append(m(x))  # 保存当前层的特征图
-
+                    out_feas_dict[m.i] = m(x)  # 保存当前层的特征图
+                if m.i == 9:
+                    return out_feas_dict
+                    
             if hasattr(m, 'backbone'):
                 x = m(x)
                 for _ in range(5 - len(x)):
@@ -136,10 +138,10 @@ class BaseModel(nn.Module):
                 if m.i == max(embed):
                     return torch.unbind(torch.cat(embeddings, 1), dim=0)
         
-        # 返回所有保存的特征图
-        if layers and out_feas_list:
-            out_feas = torch.stack(out_feas_list).squeeze(0)  # 将所有特征图堆叠为一个张量
-            return out_feas
+        # # 返回所有保存的特征图
+        # if layers and out_feas_list:
+        #     out_feas = torch.stack(out_feas_list).squeeze(0)  # 将所有特征图堆叠为一个张量
+        #     return out_feas
 
         return x
 
