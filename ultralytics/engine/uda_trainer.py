@@ -344,6 +344,7 @@ class UDABaseTrainer:
         self._setup_train(world_size)
 
         nb = min(len(self.train_loader),len(self.target_loader))  # number of batches
+        print('最小的批次大小 ',nb)
         nw = max(round(self.args.warmup_epochs * nb), 100) if self.args.warmup_epochs > 0 else -1  # warmup iterations
         last_opt_step = -1
         self.epoch_time = None
@@ -440,22 +441,30 @@ class UDABaseTrainer:
                 with torch.cuda.amp.autocast(self.amp):
                     batch_s = self.preprocess_batch(batch_S)
                     batch_t = self.preprocess_batch(batch_T)
-                    
+
                     # batch 是字典就计算loss,不是字典就计算 预测值
 
                     # 源域的检测损失
                     self.source_loss, self.source_loss_items = self.model(batch_s)
                     # print('源域实际loss',self.source_loss)
-                    # print('源域实际loss_items',self.source_loss_items)
+                    # print('源域实际loss_items',self.source_loss_items)            
 
                     # 仅 源域和目标域图像 的前向传播，返回特征图值
                     self.source_feature = self.model(batch_s['img'],layers=True)  
                     self.target_feature = self.model(batch_t['img'],layers=True)
 
+                    # 检查批次大小
+                    min_batch_size = min(self.source_feature.size(0), self.target_feature.size(0))
+                    self.source_feature = self.source_feature[:min_batch_size]
+                    self.target_feature = self.target_feature[:min_batch_size]
+
+                    print('source feature ',self.source_feature.shape) # torch.Size([ 4, 96, 160, 160]
+                    print('target feature ',self.target_feature.shape) # torch.Size([ 4, 96, 160, 160]
+
                     # 判断源域和目标域特征是否为空
                     if self.source_feature is not None and self.target_feature is not None:
                         # 检查源域和目标域特征的形状是否一致
-                        if self.source_feature.shape != self.target_feature.shape:
+                        if self.source_feature.shape != self.target_feature.shape: 
                             # 调整 target_feature 的尺寸，使其匹配 source_feature
                             self.target_feature = F.interpolate(
                                 self.target_feature, 
@@ -475,7 +484,7 @@ class UDABaseTrainer:
                     self.loss = self.source_loss + lambda_weight * mse_loss
                     self.loss_items = self.source_loss_items + mse_loss # 可选：是否将MSE损失也加入loss_items
 
-                    print('最终实际的loss_items',self.loss_items)
+                    # print('最终实际的loss_items',self.loss_items)
 
                     # 多GPU训练时的损失调整
                     if RANK != -1:

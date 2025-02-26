@@ -51,8 +51,8 @@ except ImportError:
 
 class BaseModel(nn.Module):
     """The BaseModel class serves as a base class for all the models in the Ultralytics YOLO family."""
-    print('******************* uda_task/forward')
-    def forward(self, x, *args, **kwargs):
+    
+    def forward(self, x, *args, **kwargs):   
         """
         Forward pass of the model on a single scale. Wrapper for `_forward_once` method.
 
@@ -62,6 +62,7 @@ class BaseModel(nn.Module):
         Returns:
             (torch.Tensor): The output of the network.
         """
+        print('******************* uda_task/forward')
         if isinstance(x, dict):  # for cases of training and validating while training.
             return self.loss(x, *args, **kwargs)
         return self.predict(x, *args, **kwargs)
@@ -76,7 +77,6 @@ class BaseModel(nn.Module):
             visualize (bool): Save the feature maps of the model if True, defaults to False.
             augment (bool): Augment image during prediction, defaults to False.
             embed (list, optional): A list of feature vectors/embeddings to return.
-
         Returns:
             (torch.Tensor): The last output of the model.
         """
@@ -84,7 +84,6 @@ class BaseModel(nn.Module):
             return self._predict_augment(x)
         return self.uda_predict_once(x, profile, visualize, embed,layers)
 
-   
     def uda_predict_once(self, x, profile=False, visualize=False, embed=None,layers=False):
         """
         :param bool pseudo: Whether to perform progressive pseudo labelling
@@ -92,12 +91,22 @@ class BaseModel(nn.Module):
         """
         y, dt, embeddings = [], [], []  # outputs y是指保存self.save的特征图
         # print('self.save 是  ',self.save) #[4, 6, 9, 12, 15, 18, 21]
+        out_feas_list = []
 
         for m in self.model:
             if m.f != -1:  # if not from previous layer
                 x = y[m.f] if isinstance(m.f, int) else [x if j == -1 else y[j] for j in m.f]  # from earlier layers
             if profile:
                 self._profile_one_layer(m, x, dt)
+            if layers:
+                print(f"predect.py ⚠️ Computing features at stage {m.i}")
+                if m.i in [2,4]:
+                    print(f'Saving features at stage {m.i}')
+                    out_feas_list.append(m(x))
+                    # print(out_feas_list)
+                    out_feas = torch.stack(out_feas_list).squeeze(0)
+                    return out_feas
+                # return get_features(x, m.type, m.i)
             if hasattr(m, 'backbone'):
                 x = m(x)
                 for _ in range(5 - len(x)):
@@ -114,21 +123,20 @@ class BaseModel(nn.Module):
             else:
                 x = m(x)  # run
                 y.append(x if m.i in self.save else None)  # save output
-            if layers:
-                return get_features(x, m.type, m.i)
-
+        
             # if m.__class__.__name__ in ['Detect']:
             #     # Only pass pseudo and delta to the detection head as opposed to the other layers
             #     x = m(x, pseudo, delta)
             # else:
-            #     x = m(x)  # run
-                
+            #     x = m(x)  # run    
             if visualize:     
                 feature_visualization(x, m.type, m.i, save_dir=visualize)
             if embed and m.i in embed:
                 embeddings.append(nn.functional.adaptive_avg_pool2d(x, (1, 1)).squeeze(-1).squeeze(-1))  # flatten
                 if m.i == max(embed):
                     return torch.unbind(torch.cat(embeddings, 1), dim=0)
+            
+            
         return x
 
     def _predict_augment(self, x):
