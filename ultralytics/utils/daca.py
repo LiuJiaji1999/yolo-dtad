@@ -22,16 +22,39 @@ import albumentations as A
 
 
 def get_features(x, module_type, stage):
-
+    """
+    获取特定层的输出特征。
+    
+    参数:
+        x (torch.Tensor): 输入特征图，形状为 [batch, channels, height, width]。
+        module_type (str): 模块类型（如 "Detect", "Pose", "Segment"）。
+        stage (int): 当前层数。
+    
+    返回:
+        out_feas (torch.Tensor): 保存的特征图列表（如果层数属于 [2, 4, 6, 8, 9]）。
+    """
+    # 如果模块类型是 "Detect", "Pose", "Segment"，直接返回
     for m in ["Detect", "Pose", "Segment"]:
         if m in module_type:
-            return
+            return None
+
+    # 获取输入特征图的形状
     batch, channels, height, width = x.shape  # batch, channels, height, width
-    
-    out_feas = []
-    if stage in [2,4,6,8,9]:
-        out_feas.append(x)
-    
+
+    # 初始化特征图列表
+    out_feas_list = []
+
+    # 如果层数属于 [2, 4, 6, 8, 9]，保存特征图
+    if stage in [2, 4, 6, 8, 9]:
+        print(f"Saving features at stage {stage}")  # 打印当前层数
+        out_feas_list.append(x)
+
+    # 将特征图列表转换为张量
+    if out_feas_list:  # 如果列表不为空
+        out_feas = torch.stack(out_feas_list)  # 将列表中的张量堆叠为一个张量
+    else:
+        out_feas = None  # 如果没有保存特征图，返回 None
+
     return out_feas
 
 

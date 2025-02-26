@@ -449,11 +449,24 @@ class UDABaseTrainer:
                     # 仅 源域和目标域图像 的前向传播，返回特征图值
                     self.source_feature = self.model(batch_s['img'],layers=True)  
                     self.target_feature = self.model(batch_t['img'],layers=True)
-                    if self.source_feature.shape != self.target_feature.shape:
-                        # 调整 target_feat 的尺寸，使其匹配 source_feat
-                        self.target_feature = F.interpolate(self.target_feature, size=self.source_feature.shape[2:], mode="bilinear", align_corners=False)
 
-                    
+                    # 判断源域和目标域特征是否为空
+                    if self.source_feature is not None and self.target_feature is not None:
+                        # 检查源域和目标域特征的形状是否一致
+                        if self.source_feature.shape != self.target_feature.shape:
+                            # 调整 target_feature 的尺寸，使其匹配 source_feature
+                            self.target_feature = F.interpolate(
+                                self.target_feature, 
+                                size=self.source_feature.shape[2:],  # 调整为目标特征图的高度和宽度
+                                mode="bilinear", 
+                                align_corners=False
+                            )
+                        # 计算 MSE 损失
+                        mse_loss = F.mse_loss(self.source_feature, self.target_feature)
+                    else:
+                        # 如果源域或目标域特征为空，跳过计算
+                        mse_loss = 0.0  # 或者根据需求设置为其他默认值
+
                     # 计算特征图的MSE损失
                     mse_loss = F.mse_loss(self.source_feature, self.target_feature)
                     
