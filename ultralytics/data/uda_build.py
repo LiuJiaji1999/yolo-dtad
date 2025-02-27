@@ -135,7 +135,7 @@ def uda_build_dataloader(dataset_S, dataset_T, batch, workers, shuffle=True, ran
     nw = min([os.cpu_count() // max(nd, 1), workers])  # number of workers
     
     sampler_S = None if rank == -1 else distributed.DistributedSampler(dataset_S, shuffle=shuffle)
-    sampler_T = None if rank == -1 else distributed.DistributedSampler(dataset_S, shuffle=shuffle)
+    sampler_T = None if rank == -1 else distributed.DistributedSampler(dataset_T, shuffle=shuffle)
 
     generator = torch.Generator()
     generator.manual_seed(6148914691236517205 + RANK)
