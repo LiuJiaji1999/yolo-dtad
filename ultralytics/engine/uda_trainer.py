@@ -452,6 +452,8 @@ class UDABaseTrainer:
                     # 仅 源域和目标域图像 的前向传播，返回特征图值
                     self.source_feature_dict = self.model(batch_s['img'],layers=True)  
                     self.target_feature_dict = self.model(batch_t['img'],layers=True)
+                    
+                    mse_losses = []
 
                     # 判断源域和目标域特征是否为空
                     for layer in [2, 4, 6, 8, 9]:
@@ -474,17 +476,21 @@ class UDABaseTrainer:
                                     align_corners=False
                                 )
                             # 计算 MSE 损失
-                            mse_loss = F.mse_loss(source_fea, target_fea)
-                        else:
-                            # 如果源域或目标域特征为空，跳过计算
-                            print('WARNING  source target features is None!!!')
-                            mse_loss = 0.0  # 或者根据需求设置为其他默认值
+                                
+                            if layer in [8, 9]:
+                                mse_loss = F.mse_loss(source_fea, target_fea)
+                                mse_losses.append(mse_loss)
+                            mean_mse_loss = sum(mse_losses) / 2
+                        # else:
+                        #     # 如果源域或目标域特征为空，跳过计算
+                        #     print('WARNING  source target features is None!!!')
+                        #     mse_loss = 0.0  # 或者根据需求设置为其他默认值
                     
-                    print('最终的mse_loss: ',mse_loss)
+                    print('最终的mse_loss: ',mean_mse_loss)
                     # 计算最终损失
                     lambda_weight = 0.1  # 超参数，用于平衡源域损失和特征图MSE损失
-                    self.loss = self.source_loss + lambda_weight * mse_loss
-                    self.loss_items = self.source_loss_items + mse_loss # 可选：是否将MSE损失也加入loss_items
+                    self.loss = self.source_loss + lambda_weight * mean_mse_loss
+                    self.loss_items = self.source_loss_items + mean_mse_loss.detach() # 可选：是否将MSE损失也加入loss_items
 
                     # print('最终实际的loss_items',self.loss_items)
 
