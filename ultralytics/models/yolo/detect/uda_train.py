@@ -21,7 +21,7 @@ from ultralytics.utils.torch_utils import de_parallel, torch_distributed_zero_fi
 from ultralytics.data.uda_build import build_dataloader, uda_build_dataloader, build_yolo_dataset
 from ultralytics.engine.uda_trainer import UDABaseTrainer
 
-print(' Using UDADetectionTrainer')
+print(' ****************** uda_train/Using UDADetectionTrainer')
 class UDADetectionTrainer(UDABaseTrainer):
     """
     A class extending the BaseTrainer class for training based on a detection model.

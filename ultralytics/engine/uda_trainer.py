@@ -22,7 +22,7 @@ from torch import nn, optim
 
 from ultralytics.cfg import get_cfg, get_save_dir
 from ultralytics.data.utils import check_cls_dataset, check_det_dataset
-from ultralytics.nn.tasks import attempt_load_one_weight, attempt_load_weights
+# from ultralytics.nn.tasks import attempt_load_one_weight, attempt_load_weights
 from ultralytics.utils import (
     DEFAULT_CFG,
     LOGGER,
@@ -59,6 +59,7 @@ import copy
 import albumentations as A
 from ultralytics.utils.daca import get_best_region, transform_img_bboxes
 import torch.nn.functional as F
+from ultralytics.nn.uda_tasks import attempt_load_one_weight, attempt_load_weights
 
 class UDABaseTrainer:
     """
@@ -298,7 +299,7 @@ class UDABaseTrainer:
         # self.train_loader = self.get_dataloader(self.trainset, batch_size=batch_size, rank=RANK, mode="train")
         
 
-        print(" ************************ uda_trainer")
+        print(" ************************ uda_trainer/getloader")
         self.train_loader , self.target_loader = self.uda_get_dataloader(self.trainset,self.targetset,batch_size=batch_size, rank=RANK, mode_S="train", mode_T="target")
        
         if RANK in (-1, 0):
