@@ -442,6 +442,12 @@ class UDABaseTrainer:
                     batch_s = self.preprocess_batch(batch_S)
                     batch_t = self.preprocess_batch(batch_T)
 
+                    r = ni / max_iterations
+                    delta = 2 / (1 + math.exp(-5. * r)) - 1
+                    pred_s = self.model(batch_s['img'], pseudo=True, delta=delta)  # forward  
+
+
+
                     # batch 是字典就计算loss,不是字典就计算 预测值
 
                     # 源域的检测损失
@@ -452,6 +458,7 @@ class UDABaseTrainer:
                     # 仅 源域和目标域图像 的前向传播，返回特征图值
                     self.source_feature_dict = self.model(batch_s['img'],layers=True)  
                     self.target_feature_dict = self.model(batch_t['img'],layers=True)
+                    
                     
                     mse_losses = []
 
