@@ -17,12 +17,12 @@ First, clone the project and configure the environment.
 
 ```bash
 git clone https://github.com/LiuJiaji1999/yolo-dtad.git 
-ultralytics版本为8.1.9,在ultralytics/__init__.py中的__version__有标识.              
+ultralytics版本为8.1.9, ultralytics/__init__.py/__version__             
 pip install -r
-    # 3090 单卡
-    python: 3.8.18 / 3.8.16
-    torch:  1.12.0+cu113 / 1.13.1+cu117
-    torchvision: 0.13.0+cu113 / 0.14.1+cu117  
+    # 3090 单卡  ObjectDetection/DA
+    python: 3.8.18 / [3.8.16]
+    torch:  1.12.0+cu113 / [1.13.1+cu117]
+    torchvision: 0.13.0+cu113 / [0.14.1+cu117] 
     numpy: 1.22.3
     timm: 0.9.8                 
     mmcv: 2.1.0                
