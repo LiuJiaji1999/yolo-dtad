@@ -979,15 +979,24 @@ def plot_tune_results(csv_file="tune_results.csv"):
     LOGGER.info(f"Saved {file}")
 
 
-def output_to_target(output, max_det=300):
-    """Convert model output to target format [batch_id, class_id, x, y, w, h, conf] for plotting."""
+# def output_to_target(output, max_det=300):
+#     """Convert model output to target format [batch_id, class_id, x, y, w, h, conf] for plotting."""
+#     targets = []
+#     for i, o in enumerate(output):
+#         box, conf, cls = o[:max_det, :6].cpu().split((4, 1, 1), 1)
+#         j = torch.full((conf.shape[0], 1), i)
+#         targets.append(torch.cat((j, cls, ops.xyxy2xywh(box), conf), 1))
+#     targets = torch.cat(targets, 0).numpy()
+#     return targets[:, 0], targets[:, 1], targets[:, 2:-1], targets[:, -1]
+
+def output_to_target(output):
+    """Convert model output to target format [batch_id, class_id, x, y, w, h, conf]"""
     targets = []
     for i, o in enumerate(output):
-        box, conf, cls = o[:max_det, :6].cpu().split((4, 1, 1), 1)
-        j = torch.full((conf.shape[0], 1), i)
-        targets.append(torch.cat((j, cls, ops.xyxy2xywh(box), conf), 1))
-    targets = torch.cat(targets, 0).numpy()
-    return targets[:, 0], targets[:, 1], targets[:, 2:-1], targets[:, -1]
+        for *box, conf, cls in o[:,:6].cpu().numpy():  # 遍历每个预测框
+            targets.append([i, cls, ops.xyxy2xywh(np.array(box)[None])[0], conf])  # 转换格式
+    return np.array(targets)
+
 
 def uda_output_to_target(output, max_det=300):
     targets = []

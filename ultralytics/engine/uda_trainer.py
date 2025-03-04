@@ -522,18 +522,20 @@ class UDABaseTrainer:
                     out_original = copy.deepcopy(out)    
 
                     # # use the src GT instead of the pseudo src detections used in confmix
-                    out_s = copy.deepcopy(batch_s['bboxes'].cpu().float().numpy()) 
-                    out_s[:, 2:6] = batch_s['bboxes'].cpu().float().numpy()[:, 2:6] 
-                    out_s[:, [2, 4]] *= batch_s['img'].shape[2]  # scale to pixels 
-                    out_s[:, [3, 5]] *= batch_s['img'].shape[3]    
-                    out_s = np.insert(out_s, 6, 1, axis=1) # add confidences 
+                    # 置信度混合（confmix） ：使用 源真实标签（GT）代替伪源检测中使用的。
+                    # out_s = copy.deepcopy(batch_s['bboxes'].cpu().float().numpy())  # [109,4]
+                    # out_s[:, 2:6] = batch_s['bboxes'].cpu().float().numpy()[:, 2:6] 
+                    # out_s[:, [2, 4]] *= batch_s['img'].shape[2]  # scale to pixels 
+                    # out_s[:, [3, 5]] *= batch_s['img'].shape[3]    
+                    # out_s = np.insert(out_s, 6, 1, axis=1) # add confidences 
 
                     #DACA
                     imgs_concat = torch.ones_like(batch_s['img']) * torch.mean(batch_s['img']) #  初始化合成图像，进行再次训练
-                    if out.shape[0] > 0:
+                    if out.shape[0] > 0: #（16，4）
                         # get best region from target 从目标域中选 最好的区域，进行
                         region_t1_original, out1_original, best_side = get_best_region(out, batch_t['img'])
                         # torch.Size([8, 3, 320, 320]),(2400,7),''topleft''  
+                        
                         transform = A.Compose([
                                             A.BBoxSafeRandomCrop(erosion_rate=0.1, always_apply=False, p=0.2),
                                             A.HorizontalFlip(p=0.5),
@@ -577,11 +579,11 @@ class UDABaseTrainer:
                         out = torch.empty([0,7]) 
 
                     imgs_daca = imgs_concat
-                    out_s = torch.from_numpy(out_s) if out_s.size else torch.empty([0,7])
+                    # out_s = torch.from_numpy(out_s) if out_s.size else torch.empty([0,7])
                     b, c, h, w = imgs_daca.shape
                     
                     # create daca targets 
-                    targets_daca_s = out_s
+                    # targets_daca_s = out_s
                     targets_daca_t = out
                     targets_daca =  targets_daca_t
 
