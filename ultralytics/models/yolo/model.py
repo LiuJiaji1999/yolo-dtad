@@ -2,7 +2,8 @@
 
 from ultralytics.engine.model import Model
 from ultralytics.models import yolo
-from ultralytics.nn.tasks import ClassificationModel, DetectionModel, OBBModel, PoseModel, SegmentationModel
+# from ultralytics.nn.tasks import ClassificationModel, DetectionModel, OBBModel, PoseModel, SegmentationModel
+from ultralytics.nn.uda_tasks import ClassificationModel, DetectionModel, OBBModel, PoseModel, SegmentationModel
 
 
 class YOLO(Model):

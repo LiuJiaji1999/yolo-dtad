@@ -67,7 +67,7 @@ class BaseModel(nn.Module):
             return self.loss(x, *args, **kwargs)
         return self.predict(x, *args, **kwargs)
 
-    def predict(self, x, profile=False, visualize=False, augment=False, embed=None,layers=False):
+    def predict(self, x, profile=False, visualize=False, augment=False, embed=None,layers=False,pseudo=False,delta=1.):
         """
         Perform a forward pass through the network.
 
@@ -82,9 +82,9 @@ class BaseModel(nn.Module):
         """
         if augment:
             return self._predict_augment(x)
-        return self.uda_predict_once(x, profile, visualize, embed,layers)
+        return self.uda_predict_once(x, profile, visualize, embed,layers,pseudo,delta)
 
-    def uda_predict_once(self, x, profile=False, visualize=False, embed=None,layers=False):
+    def uda_predict_once(self, x, profile=False, visualize=False, embed=None,layers=False,pseudo=False,delta=1.):
         """
         :param bool pseudo: Whether to perform progressive pseudo labelling
         :param float delta: The shifting weight to assign progressively more importance to C_comb
@@ -121,15 +121,15 @@ class BaseModel(nn.Module):
                 #     if i is not None:
                 #         print(i.size())
                 x = x[-1]
-            else:
-                x = m(x)  # run
-                y.append(x if m.i in self.save else None)  # save output
-        
+            
             # if m.__class__.__name__ in ['Detect']:
             #     # Only pass pseudo and delta to the detection head as opposed to the other layers
             #     x = m(x, pseudo, delta)
-            # else:
-            #     x = m(x)  # run    
+
+            else:
+                x = m(x)  # run
+                y.append(x if m.i in self.save else None)  # save output
+            
             if visualize:     
                 feature_visualization(x, m.type, m.i, save_dir=visualize)
 
@@ -349,6 +349,8 @@ class DetectionModel(BaseModel):
         if verbose:
             self.info()
             LOGGER.info("")
+
+    
 
     def _predict_augment(self, x):
         """Perform augmentations on input image x and return augmented inference and train outputs."""

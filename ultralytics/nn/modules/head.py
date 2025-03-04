@@ -15,7 +15,6 @@ from .utils import bias_init_with_prob, linear_init
 
 __all__ = "Detect", "Segment", "Pose", "Classify", "OBB", "RTDETRDecoder"
 
-
 class Detect(nn.Module):
     """YOLOv8 Detect head for detection models."""
 
@@ -24,8 +23,9 @@ class Detect(nn.Module):
     shape = None
     anchors = torch.empty(0)  # init
     strides = torch.empty(0)  # init
+    grid = [torch.empty(0)] * 3
 
-    def __init__(self, nc=80, ch=()):
+    def __init__(self, nc=80, ch=(),inplace=True):
         """Initializes the YOLOv8 detection layer with specified number of classes and channels."""
         super().__init__()
         self.nc = nc  # number of classes
@@ -33,18 +33,20 @@ class Detect(nn.Module):
         self.reg_max = 16  # DFL channels (ch[0] // 16 to scale 4/8/12/16/20 for n/s/m/l/x)
         self.no = nc + self.reg_max * 4  # number of outputs per anchor
         self.stride = torch.zeros(self.nl)  # strides computed during build
+        self.inplace = inplace  # use in-place ops (e.g. slice assignment)
         
         c2, c3 = max((16, ch[0] // 4, self.reg_max * 4)), max(ch[0], min(self.nc, 100))  # channels
         self.cv2 = nn.ModuleList(nn.Sequential(Conv(x, c2, 3), Conv(c2, c2, 3), nn.Conv2d(c2, 4 * self.reg_max, 1)) for x in ch)
         self.cv3 = nn.ModuleList(nn.Sequential(Conv(x, c3, 3), Conv(c3, c3, 3), nn.Conv2d(c3, self.nc, 1)) for x in ch)
         self.dfl = DFL(self.reg_max) if self.reg_max > 1 else nn.Identity()
 
-    def forward(self, x):
-        """Concatenates and returns predicted bounding boxes and class probabilities."""
+    def forward(self, x, pseudo=False ,delta=0.5):
+        v = []  # variance output
+
         for i in range(self.nl):
             x[i] = torch.cat((self.cv2[i](x[i]), self.cv3[i](x[i])), 1)
-        if self.training:  # Training path
-            return x
+        # if self.training:  # Training path
+        #     return x
 
         # Inference path
         shape = x[0].shape  # BCHW
@@ -70,8 +72,25 @@ class Detect(nn.Module):
             dbox = dist2bbox(self.dfl(box) * norm, self.anchors.unsqueeze(0) * norm[:, :2], xywh=True, dim=1)
 
         y = torch.cat((dbox, cls.sigmoid()), 1)
-        return y if self.export else (y, x)
+        # return y if self.export else (y, x)
+        
+        if pseudo:
+             # Recover variances from the output
+            v = [xi[..., -4:] for xi in x]  # variances are the last 4 channels
+            # Apply pseudo labelling logic
+            c_det = y[..., 4].detach()  # detection confidence
+            c_bbx = (1 - torch.mean(torch.cat(v, dim=1), dim=-1)).detach()  # bounding box confidence
+            c_comb = c_det * c_bbx  # combined confidence
+            y[..., 4] = (1 - delta) * c_det + delta * c_comb  # update confidence with delta
+            # Remove variances from the output
+            y = y[..., :-4]
+            return y, x, v  # return detections, feature maps, and variances
+        elif self.export:
+            return y # return detections for export
+        else:
+            return (y,x) # return detections and feature maps for inference
 
+    
     def bias_init(self):
         """Initialize Detect() biases, WARNING: requires stride availability."""
         m = self  # self.model[-1]  # Detect() module
@@ -84,6 +103,76 @@ class Detect(nn.Module):
     def decode_bboxes(self, bboxes):
         """Decode bounding boxes."""
         return dist2bbox(self.dfl(bboxes), self.anchors.unsqueeze(0), xywh=True, dim=1) * self.strides
+
+
+# class Detect(nn.Module):
+#     """YOLOv8 Detect head for detection models."""
+
+#     dynamic = False  # force grid reconstruction
+#     export = False  # export mode
+#     shape = None
+#     anchors = torch.empty(0)  # init
+#     strides = torch.empty(0)  # init
+
+#     def __init__(self, nc=80, ch=()):
+#         """Initializes the YOLOv8 detection layer with specified number of classes and channels."""
+#         super().__init__()
+#         self.nc = nc  # number of classes
+#         self.nl = len(ch)  # number of detection layers
+#         self.reg_max = 16  # DFL channels (ch[0] // 16 to scale 4/8/12/16/20 for n/s/m/l/x)
+#         self.no = nc + self.reg_max * 4  # number of outputs per anchor
+#         self.stride = torch.zeros(self.nl)  # strides computed during build
+        
+#         c2, c3 = max((16, ch[0] // 4, self.reg_max * 4)), max(ch[0], min(self.nc, 100))  # channels
+#         self.cv2 = nn.ModuleList(nn.Sequential(Conv(x, c2, 3), Conv(c2, c2, 3), nn.Conv2d(c2, 4 * self.reg_max, 1)) for x in ch)
+#         self.cv3 = nn.ModuleList(nn.Sequential(Conv(x, c3, 3), Conv(c3, c3, 3), nn.Conv2d(c3, self.nc, 1)) for x in ch)
+#         self.dfl = DFL(self.reg_max) if self.reg_max > 1 else nn.Identity()
+
+#     def forward(self, x):
+#         """Concatenates and returns predicted bounding boxes and class probabilities."""
+#         for i in range(self.nl):
+#             x[i] = torch.cat((self.cv2[i](x[i]), self.cv3[i](x[i])), 1)
+#         if self.training:  # Training path
+#             return x
+
+#         # Inference path
+#         shape = x[0].shape  # BCHW
+#         x_cat = torch.cat([xi.view(shape[0], self.no, -1) for xi in x], 2)
+#         if self.dynamic or self.shape != shape:
+#             self.anchors, self.strides = (x.transpose(0, 1) for x in make_anchors(x, self.stride, 0.5))
+#             self.shape = shape
+
+#         if self.export and self.format in ("saved_model", "pb", "tflite", "edgetpu", "tfjs"):  # avoid TF FlexSplitV ops
+#             box = x_cat[:, : self.reg_max * 4]
+#             cls = x_cat[:, self.reg_max * 4 :]
+#         else:
+#             box, cls = x_cat.split((self.reg_max * 4, self.nc), 1)
+#         dbox = self.decode_bboxes(box)
+
+#         if self.export and self.format in ("tflite", "edgetpu"):
+#             # Precompute normalization factor to increase numerical stability
+#             # See https://github.com/ultralytics/ultralytics/issues/7371
+#             img_h = shape[2]
+#             img_w = shape[3]
+#             img_size = torch.tensor([img_w, img_h, img_w, img_h], device=box.device).reshape(1, 4, 1)
+#             norm = self.strides / (self.stride[0] * img_size)
+#             dbox = dist2bbox(self.dfl(box) * norm, self.anchors.unsqueeze(0) * norm[:, :2], xywh=True, dim=1)
+
+#         y = torch.cat((dbox, cls.sigmoid()), 1)
+#         return y if self.export else (y, x)
+
+#     def bias_init(self):
+#         """Initialize Detect() biases, WARNING: requires stride availability."""
+#         m = self  # self.model[-1]  # Detect() module
+#         # cf = torch.bincount(torch.tensor(np.concatenate(dataset.labels, 0)[:, 0]).long(), minlength=nc) + 1
+#         # ncf = math.log(0.6 / (m.nc - 0.999999)) if cf is None else torch.log(cf / cf.sum())  # nominal class frequency
+#         for a, b, s in zip(m.cv2, m.cv3, m.stride):  # from
+#             a[-1].bias.data[:] = 1.0  # box
+#             b[-1].bias.data[: m.nc] = math.log(5 / m.nc / (640 / s) ** 2)  # cls (.01 objects, 80 classes, 640 img)
+
+#     def decode_bboxes(self, bboxes):
+#         """Decode bounding boxes."""
+#         return dist2bbox(self.dfl(bboxes), self.anchors.unsqueeze(0), xywh=True, dim=1) * self.strides
 
 
 class Segment(Detect):

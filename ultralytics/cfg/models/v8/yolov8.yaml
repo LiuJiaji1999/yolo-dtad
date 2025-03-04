@@ -2,7 +2,7 @@
 # YOLOv8 object detection model with P3-P5 outputs. For Usage examples see https://docs.ultralytics.com/tasks/detect
 
 # Parameters
-nc: 6  # 类别数目，nc代表"number of classes"，即模型用于检测的对象类别总数。
+nc: 80  # 类别数目，nc代表"number of classes"，即模型用于检测的对象类别总数。
 scales: # 模型复合缩放常数，例如 'model=yolov8n.yaml' 将调用带有 'n' 缩放的 yolov8.yaml
   # [depth, width, max_channels]  
   # depth： 表示深度因子，用来控制一些特定模块的数量的，模块数量多网络深度就深；
