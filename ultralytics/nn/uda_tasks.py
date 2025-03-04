@@ -62,7 +62,7 @@ class BaseModel(nn.Module):
         Returns:
             (torch.Tensor): The output of the network.
         """
-        print('******************* uda_task/forward')
+        # print('******************* uda_task/forward')
         if isinstance(x, dict):  # for cases of training and validating while training.
             return self.loss(x, *args, **kwargs)
         return self.predict(x, *args, **kwargs)
@@ -324,6 +324,7 @@ class DetectionModel(BaseModel):
             self.net_update_temperature(0)
 
         # Build strides
+        print('******************* uda_task/detection_forward')
         m = self.model[-1]  # Detect()
         if isinstance(m, (Detect, Detect_DyHead, Detect_AFPN_P2345, Detect_AFPN_P2345_Custom, Detect_AFPN_P345, Detect_AFPN_P345_Custom, 
                           Detect_Efficient, DetectAux, Detect_DyHeadWithDCNV3, Detect_DyHeadWithDCNV4, Detect_SEAM, Detect_MultiSEAM, Detect_DyHead_Prune, 
