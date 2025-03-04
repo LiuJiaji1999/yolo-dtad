@@ -518,7 +518,7 @@ class UDABaseTrainer:
 
                     # filter pseudo detections on target images applying NMS
                     out = uda_non_max_suppression(pseudo_t.detach(), conf_thres=0.1, iou_thres=0.5, multi_label=False)
-                    out = output_to_target(out)  # xyxy to xc,yc,w,h (2400,7)
+                    out = output_to_target(out)  # [batch_id, class_id, x, y, w, h, conf] (16,7)
                     out_original = copy.deepcopy(out)    
 
                     # # use the src GT instead of the pseudo src detections used in confmix
@@ -535,7 +535,7 @@ class UDABaseTrainer:
                         # get best region from target 从目标域中选 最好的区域，进行
                         region_t1_original, out1_original, best_side = get_best_region(out, batch_t['img'])
                         # torch.Size([8, 3, 320, 320]),(2400,7),''topleft''  
-                        
+
                         transform = A.Compose([
                                             A.BBoxSafeRandomCrop(erosion_rate=0.1, always_apply=False, p=0.2),
                                             A.HorizontalFlip(p=0.5),

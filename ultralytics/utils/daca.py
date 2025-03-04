@@ -64,8 +64,8 @@ def get_best_region(out, imgs_t):
     region_t = imgs_t[:, :, 0:int(imgs_t.shape[3]/2), 0:int(imgs_t.shape[2]/2)] # initialize in case no bboxes are detected
     best_side = 'topleft'  # initialize in case no bboxes are detected 左上角
     if out.shape[0] > 0:
-        bboxes_target = copy.deepcopy(out) # bboxes_target.shape (16,4)
-        # 筛选左上角区域 (topleft)：
+        bboxes_target = copy.deepcopy(out) # [batch_id, class_id, x, y, w, h, conf] (16,7)
+        # 筛选左上角区域 (topleft)： numpy < float 320.0
         # bboxes_target[:, 2] < imgs_t.shape[2]/2 → 目标中心点 cx 在左半部分
         # bboxes_target[:, 3] < imgs_t.shape[3]/2 → 目标中心点 cy 在上半部分
         bboxes_target_topleft = bboxes_target[bboxes_target[:, 2] < imgs_t.shape[2]/2, :]

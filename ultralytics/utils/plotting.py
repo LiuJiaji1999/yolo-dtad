@@ -979,23 +979,33 @@ def plot_tune_results(csv_file="tune_results.csv"):
     LOGGER.info(f"Saved {file}")
 
 
-# def output_to_target(output, max_det=300):
-#     """Convert model output to target format [batch_id, class_id, x, y, w, h, conf] for plotting."""
-#     targets = []
-#     for i, o in enumerate(output):
-#         box, conf, cls = o[:max_det, :6].cpu().split((4, 1, 1), 1)
-#         j = torch.full((conf.shape[0], 1), i)
-#         targets.append(torch.cat((j, cls, ops.xyxy2xywh(box), conf), 1))
-#     targets = torch.cat(targets, 0).numpy()
-#     return targets[:, 0], targets[:, 1], targets[:, 2:-1], targets[:, -1]
-
-def output_to_target(output):
-    """Convert model output to target format [batch_id, class_id, x, y, w, h, conf]"""
+def output_to_target(output, max_det=300):
+    """Convert model output to target format [x1, y1, x2, y2, conf, cls] -》 [batch_id, class_id, x, y, w, h, conf] for plotting."""
     targets = []
     for i, o in enumerate(output):
-        for *box, conf, cls in o[:,:6].cpu().numpy():  # 遍历每个预测框
-            targets.append([i, cls, ops.xyxy2xywh(np.array(box)[None])[0], conf])  # 转换格式
-    return np.array(targets)
+        # o[:max_det, :6]：从当前批次的检测结果中提取最多 max_det 个检测框，并只保留前 6 列数据（通常是 [x1, y1, x2, y2, conf, cls]）。
+        # .split((4, 1, 1), 1)：将数据按列分割为三部分：
+        # box：前 4 列，表示检测框的坐标 [x1, y1, x2, y2]。
+        # conf：第 5 列，表示检测框的置信度。
+        # cls：第 6 列，表示检测框的类别 ID。
+        box, conf, cls = o[:max_det, :6].cpu().split((4, 1, 1), 1)
+        # 创建一个与 conf 行数相同的张量 j，并用当前批次的索引 i 填充，表示当前检测结果属于哪个批次（batch_id）。
+        j = torch.full((conf.shape[0], 1), i)
+        # 将 batch_id、class_id、转换后的检测框坐标 [x, y, w, h] 和置信度 conf 按列拼接。
+        targets.append(torch.cat((j, cls, ops.xyxy2xywh(box), conf), 1))
+    # torch.cat(targets, 0) 将所有批次的目标数据按行合并
+     # .numpy()：将最终的张量转换为 NumPy 数组。
+    targets = torch.cat(targets, 0).numpy() 
+    return targets
+    # return targets[:, 0], targets[:, 1], targets[:, 2:-1], targets[:, -1]
+
+# def output_to_target(output):
+#     """Convert model output to target format [batch_id, class_id, x, y, w, h, conf]"""
+#     targets = []
+#     for i, o in enumerate(output):
+#         for *box, conf, cls in o[:,:6].cpu().numpy():  # 遍历每个预测框
+#             targets.append([i, cls, ops.xyxy2xywh(np.array(box)[None])[0], conf])  # 转换格式
+#     return np.array(targets)
 
 
 def uda_output_to_target(output, max_det=300):
