@@ -20,10 +20,10 @@ class Detect(nn.Module):
 
     dynamic = False  # force grid reconstruction
     export = False  # export mode
-    shape = None
-    anchors = torch.empty(0)  # init
-    strides = torch.empty(0)  # init
-    grid = [torch.empty(0)] * 3
+    shape = None # 存储输入特征图的形状。
+    anchors = torch.empty(0)  # init 锚点
+    strides = torch.empty(0)  # init 步长
+    # grid = [torch.empty(0)] * 3 
 
     def __init__(self, nc=80, ch=(),inplace=True):
         """Initializes the YOLOv8 detection layer with specified number of classes and channels."""
@@ -31,12 +31,14 @@ class Detect(nn.Module):
         self.nc = nc  # number of classes
         self.nl = len(ch)  # number of detection layers
         self.reg_max = 16  # DFL channels (ch[0] // 16 to scale 4/8/12/16/20 for n/s/m/l/x)
-        self.no = nc + self.reg_max * 4  # number of outputs per anchor
-        self.stride = torch.zeros(self.nl)  # strides computed during build
+        self.no = nc + self.reg_max * 4  # number of outputs per anchor 类别分数和回归值
+        self.stride = torch.zeros(self.nl)  # strides computed during build 初始化步幅为零张量
         self.inplace = inplace  # use in-place ops (e.g. slice assignment)
         
         c2, c3 = max((16, ch[0] // 4, self.reg_max * 4)), max(ch[0], min(self.nc, 100))  # channels
+        # 用于回归
         self.cv2 = nn.ModuleList(nn.Sequential(Conv(x, c2, 3), Conv(c2, c2, 3), nn.Conv2d(c2, 4 * self.reg_max, 1)) for x in ch)
+        # 用于 分类
         self.cv3 = nn.ModuleList(nn.Sequential(Conv(x, c3, 3), Conv(c3, c3, 3), nn.Conv2d(c3, self.nc, 1)) for x in ch)
         self.dfl = DFL(self.reg_max) if self.reg_max > 1 else nn.Identity()
 
@@ -44,22 +46,24 @@ class Detect(nn.Module):
         v = []  # variance output
 
         for i in range(self.nl):
+            # 对每个检测层的输入进行卷积操作，并将回归和分类分支的输出拼接在一起。
             x[i] = torch.cat((self.cv2[i](x[i]), self.cv3[i](x[i])), 1)
-        # if self.training:  # Training path
-        #     return x
 
         # Inference path
-        shape = x[0].shape  # BCHW
+        shape = x[0].shape  # BCHW 特征图形状
+        # 将每个检测层的输出拼接在一起
         x_cat = torch.cat([xi.view(shape[0], self.no, -1) for xi in x], 2)
+        # 动态生成锚点：如果输入形状发生变化，重新生成锚点和步幅
         if self.dynamic or self.shape != shape:
             self.anchors, self.strides = (x.transpose(0, 1) for x in make_anchors(x, self.stride, 0.5))
             self.shape = shape
-
+        # 导出模式：根据导出格式（如 TensorFlow、TFLite 等）拆分回归和分类输出
         if self.export and self.format in ("saved_model", "pb", "tflite", "edgetpu", "tfjs"):  # avoid TF FlexSplitV ops
             box = x_cat[:, : self.reg_max * 4]
             cls = x_cat[:, self.reg_max * 4 :]
         else:
             box, cls = x_cat.split((self.reg_max * 4, self.nc), 1)
+        # decode_bboxes: 解码边界框
         dbox = self.decode_bboxes(box)
 
         if self.export and self.format in ("tflite", "edgetpu"):
@@ -68,12 +72,17 @@ class Detect(nn.Module):
             img_h = shape[2]
             img_w = shape[3]
             img_size = torch.tensor([img_w, img_h, img_w, img_h], device=box.device).reshape(1, 4, 1)
-            norm = self.strides / (self.stride[0] * img_size)
+            norm = self.strides / (self.stride[0] * img_size) # 预计算归一化因子以提高数值稳定性。
+            # dist2bbox: 将距离转换为边界框坐标。
             dbox = dist2bbox(self.dfl(box) * norm, self.anchors.unsqueeze(0) * norm[:, :2], xywh=True, dim=1)
 
-        y = torch.cat((dbox, cls.sigmoid()), 1)
-        # return y if self.export else (y, x)
+        y = torch.cat((dbox, cls.sigmoid()), 1) # 拼接结果：将解码后的边界框 和 分类分数 拼接在一起。
+        # return y if self.export else (y, x) # 如果处于导出模式，返回 y；否则返回 (y, x)。
         
+        # # # 如果处于训练模式，直接返回特征图 x。
+        # if self.training:  # Training path
+        #     return x
+
         if self.training and not pseudo:
             return x
         elif pseudo:
@@ -95,7 +104,9 @@ class Detect(nn.Module):
 
     
     def bias_init(self):
-        """Initialize Detect() biases, WARNING: requires stride availability."""
+        """Initialize Detect() biases, WARNING: requires stride availability.
+        为回归分支和分类分支的卷积层初始化偏置。
+        """
         m = self  # self.model[-1]  # Detect() module
         # cf = torch.bincount(torch.tensor(np.concatenate(dataset.labels, 0)[:, 0]).long(), minlength=nc) + 1
         # ncf = math.log(0.6 / (m.nc - 0.999999)) if cf is None else torch.log(cf / cf.sum())  # nominal class frequency
