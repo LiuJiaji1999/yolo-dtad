@@ -54,7 +54,6 @@ class Detect(nn.Module):
         if self.dynamic or self.shape != shape:
             self.anchors, self.strides = (x.transpose(0, 1) for x in make_anchors(x, self.stride, 0.5))
             self.shape = shape
-
         if self.export and self.format in ("saved_model", "pb", "tflite", "edgetpu", "tfjs"):  # avoid TF FlexSplitV ops
             box = x_cat[:, : self.reg_max * 4]
             cls = x_cat[:, self.reg_max * 4 :]
@@ -74,7 +73,9 @@ class Detect(nn.Module):
         y = torch.cat((dbox, cls.sigmoid()), 1)
         # return y if self.export else (y, x)
         
-        if pseudo:
+        if self.training and not pseudo:
+            return x
+        elif pseudo:
              # Recover variances from the output
             v = [xi[..., -4:] for xi in x]  # variances are the last 4 channels
             # Apply pseudo labelling logic
@@ -90,6 +91,7 @@ class Detect(nn.Module):
         else:
             return (y,x) # return detections and feature maps for inference
 
+
     
     def bias_init(self):
         """Initialize Detect() biases, WARNING: requires stride availability."""
@@ -104,6 +106,8 @@ class Detect(nn.Module):
         """Decode bounding boxes."""
         return dist2bbox(self.dfl(bboxes), self.anchors.unsqueeze(0), xywh=True, dim=1) * self.strides
 
+
+    
 
 # class Detect(nn.Module):
 #     """YOLOv8 Detect head for detection models."""
