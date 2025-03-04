@@ -342,27 +342,28 @@ def non_max_suppression(
 
     bs = prediction.shape[0]  # batch size
     nc = nc or (prediction.shape[1] - 4)  # number of classes  61
-    nm = prediction.shape[1] - nc - 4
-    mi = 4 + nc  # mask start index 65
-    xc = prediction[:, 4:mi].amax(1) > conf_thres  # candidates
+    nm = prediction.shape[1] - nc - 4 # 掩码数量
+    mi = 4 + nc  # mask start index 65  # 掩码的起始索引
+    xc = prediction[:, 4:mi].amax(1) > conf_thres  # candidates 通过置信度阈值筛选出候选框
 
     # Settings
     # min_wh = 2  # (pixels) minimum box width and height
-    time_limit = 2.0 + max_time_img * bs  # seconds to quit after
-    multi_label &= nc > 1  # multiple labels per box (adds 0.5ms/img)
+    time_limit = 2.0 + max_time_img * bs  # seconds to quit after 处理每张图像的最大时间限制
+    multi_label &= nc > 1  # multiple labels per box (adds 0.5ms/img)  是否支持多标签（每个框可能有多个类别）。
 
     prediction = prediction.transpose(-1, -2)  # shape(1,84,6300) to shape(1,6300,84)
     if not rotated:
-        prediction[..., :4] = xywh2xyxy(prediction[..., :4])  # xywh to xyxy
+        prediction[..., :4] = xywh2xyxy(prediction[..., :4])  # xywh to xyxy 左上和右下的两个点
 
     t = time.time()
-    output = [torch.zeros((0, 6 + nm), device=prediction.device)] * bs
+    output = [torch.zeros((0, 6 + nm), device=prediction.device)] * bs # 初始化输出列表，每个元素是一个空张量，用于存储每张图像的检测结果。
     for xi, x in enumerate(prediction):  # image index, image inference
         # Apply constraints
         # x[((x[:, 2:4] < min_wh) | (x[:, 2:4] > max_wh)).any(1), 4] = 0  # width-height
         x = x[xc[xi]]  # confidence
 
-        # Cat apriori labels if autolabelling
+        # Cat apriori labels if autolabelling 
+        # 如果有标签，则将标签信息与预测结果拼接。
         if labels and len(labels[xi]) and not rotated:
             lb = labels[xi]
             v = torch.zeros((len(lb), nc + nm + 4), device=x.device)
@@ -371,6 +372,7 @@ def non_max_suppression(
             x = torch.cat((x, v), 0)
 
         # If none remain process next image
+        # 如果没有候选框，则跳过当前图像。
         if not x.shape[0]:
             continue
 
@@ -381,10 +383,14 @@ def non_max_suppression(
             i, j = torch.where(cls > conf_thres)
             x = torch.cat((box[i], x[i, 4 + j, None], j[:, None].float(), mask[i]), 1)
         else:  # best class only
-            conf, j = cls.max(1, keepdim=True)
-            x = torch.cat((box, conf, j.float(), mask), 1)[conf.view(-1) > conf_thres]
+            ######################################
+            # 类别分数：模型输出的类别分数经过 sigmoid 函数映射到 [0, 1] 范围内，表示每个类别的置信度。
+            # 边界框置信度：通常取类别分数的最大值作为边界框的置信度。
+            conf, j = cls.max(1, keepdim=True) # 取每个框的最大类别分数
+            x = torch.cat((box, conf, j.float(), mask), 1)[conf.view(-1) > conf_thres] # 过滤低置信度框
 
         # Filter by class
+        # 如果指定了类别，则只保留指定类别的检测框。
         if classes is not None:
             x = x[(x[:, 5:6] == torch.tensor(classes, device=x.device)).any(1)]
 

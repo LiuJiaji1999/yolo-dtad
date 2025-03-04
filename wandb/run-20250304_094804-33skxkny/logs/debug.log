@@ -1,4 +1,0 @@
-2025-03-04 09:48:04,333 INFO    MainThread:23001 [wandb_setup.py:_flush():70] setting env: {'mode': 'disabled'}
-2025-03-04 09:48:04,333 INFO    MainThread:23001 [wandb_setup.py:_flush():70] multiprocessing start_methods=fork,spawn,forkserver
-2025-03-04 09:48:04,333 INFO    MainThread:23001 [wandb_init.py:_log_setup():303] Logging user logs to /home/lenovo/data/liujiaji/YOLO-DTAD/wandb/run-20250304_094804-33skxkny/logs/debug.log
-2025-03-04 09:48:04,333 INFO    MainThread:23001 [wandb_init.py:_log_setup():304] Logging internal logs to /home/lenovo/data/liujiaji/YOLO-DTAD/wandb/run-20250304_094804-33skxkny/logs/debug-internal.log

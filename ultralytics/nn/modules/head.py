@@ -76,6 +76,11 @@ class Detect(nn.Module):
             # dist2bbox: 将距离转换为边界框坐标。
             dbox = dist2bbox(self.dfl(box) * norm, self.anchors.unsqueeze(0) * norm[:, :2], xywh=True, dim=1)
 
+        # Get detection confidence and bounding box confidence
+        #  分类分支的输出，形状为 (batch_size, self.nc, num_anchors)。
+        cls_conf = cls.sigmoid()  # Class confidence (probability)
+        box_conf = torch.mean(cls_conf, dim=1, keepdim=True)  # Bounding box confidence (average class confidence)
+
         y = torch.cat((dbox, cls.sigmoid()), 1) # 拼接结果：将解码后的边界框 和 分类分数 拼接在一起。
         # return y if self.export else (y, x) # 如果处于导出模式，返回 y；否则返回 (y, x)。
         
@@ -96,6 +101,8 @@ class Detect(nn.Module):
             # Remove variances from the output
             y = y[..., :-4]
             return y, x, v  # return detections, feature maps, and variances
+        
+        
         elif self.export:
             return y # return detections for export
         else:
