@@ -52,8 +52,8 @@ from ultralytics.nn.extra_modules.kernel_warehouse import get_temperature
 
 #############
 
-from ultralytics.utils.ops import xywh2xyxy, uda_non_max_suppression
-from ultralytics.utils.plotting import uda_output_to_target, plot_images
+from ultralytics.utils.ops import xywh2xyxy, uda_non_max_suppression,non_max_suppression
+from ultralytics.utils.plotting import output_to_target, plot_images,uda_output_to_target
 # from ultralytics.models.yolo.detect.uda_train import  UDADetectionTrainer
 import copy
 import albumentations as A
@@ -442,15 +442,12 @@ class UDABaseTrainer:
                 with torch.cuda.amp.autocast(self.amp):
                     batch_s = self.preprocess_batch(batch_S)
                     batch_t = self.preprocess_batch(batch_T)
+                    # self.model(batch),
+                        # batch是字典就计算loss,不是字典一般是img 就计算forward预测值
 
-                    # batch 是字典就计算loss,不是字典就计算 预测值
-
-                    r = ni / max_iterations
-                    delta = 2 / (1 + math.exp(-5. * r)) - 1
-                    pred_s = self.model(batch_s['img'], pseudo=True, delta=delta)  # forward          
-                    pseudo_s, pred_s, var_s = pred_s
-
-                    print('-----------------------------------------------------')
+                    # ----------------------------------------------------- 
+                    # 源域 目标域的特征图 差异，作为第二个损失 最终优化目标为 与源域的检测损失 ，权重相加
+                    '''
                     # 源域的检测损失
                     self.source_loss, self.source_loss_items = self.model(batch_s)
                     # print('源域实际loss',self.source_loss)
@@ -459,7 +456,6 @@ class UDABaseTrainer:
                     # 仅 源域和目标域图像 的前向传播，返回特征图值
                     self.source_feature_dict = self.model(batch_s['img'],layers=True)  
                     self.target_feature_dict = self.model(batch_t['img'],layers=True)
-                    
                     
                     mse_losses = []
 
@@ -495,13 +491,13 @@ class UDABaseTrainer:
                         #     mse_loss = 0.0  # 或者根据需求设置为其他默认值
                     
                     print('最终的mse_loss: ',mean_mse_loss)
+
                     # 计算最终损失
                     lambda_weight = 0.1  # 超参数，用于平衡源域损失和特征图MSE损失
                     self.loss = self.source_loss + lambda_weight * mean_mse_loss
                     self.loss_items = self.source_loss_items + mean_mse_loss.detach() # 可选：是否将MSE损失也加入loss_items
 
                     # print('最终实际的loss_items',self.loss_items)
-
                     # 多GPU训练时的损失调整
                     if RANK != -1:
                         self.loss *= world_size
@@ -509,101 +505,115 @@ class UDABaseTrainer:
                     self.tloss = (
                         (self.tloss * i + self.loss_items) / (i + 1) if self.tloss is not None else self.loss_items
                     )
-
-                    # r = ni / max_iterations
-                    # delta = 2 / (1 + math.exp(-5. * r)) - 1
-                    # pred_s = self.model(imgs_s)  # forward      
-                    # pseudo_s, pred_s, var_s = pred_s # 源的伪标签
-                    # print(pseudo_s)  # torch.Size([8, 65, 80, 80])
-                    # print(pred_s)  # torch.Size([8, 65, 40, 40])
-
-                    # # supervised detector loss term on the labelled source samples
-                    # self.loss, self.loss_items = self.model(batch_S)
-
-                    # pred_t = self.model(imgs_t)  # forward 
-                    # pseudo_t, pred_t, var_t = pred_t # 目标伪标签
-
-                    # # filter pseudo detections on target images applying NMS
-                    # out = uda_non_max_suppression(pseudo_t.detach(), conf_thres=0.1, iou_thres=0.5, multi_label=False)
-                    # out = uda_output_to_target(out)  # xyxy to xc,yc,w,h (2400,7)
-                    # out_original = copy.deepcopy(out)    
-
-                    # # # use the src GT instead of the pseudo src detections used in confmix
-                    # out_s = copy.deepcopy(targets_s.cpu().float().numpy()) 
-                    # out_s[:, 2:6] = targets_s.cpu().float().numpy()[:, 2:6] 
-                    # out_s[:, [2, 4]] *= imgs_s.shape[2]  # scale to pixels 
-                    # out_s[:, [3, 5]] *= imgs_s.shape[3]    
-                    # out_s = np.insert(out_s, 6, 1, axis=1) # add confidences 
-
-                    # #DACA
-                    # imgs_concat = torch.ones_like(imgs_s) * torch.mean(imgs_s) #  初始化合成图像，进行再次训练
-                    # if out.shape[0] > 0:
-                    #     # get best region from target 从目标域中选 最好的区域，进行
-                    #     region_t1_original, out1_original, best_side = get_best_region(out, imgs_t)
-                    #     # torch.Size([8, 3, 320, 320]),(2400,7),''topleft''  
-                    #     transform = A.Compose([
-                    #                         A.BBoxSafeRandomCrop(erosion_rate=0.1, always_apply=False, p=0.2),
-                    #                         A.HorizontalFlip(p=0.5),
-                    #                         A.Blur(blur_limit=1, always_apply=True, p=0.5), 
-                    #                         A.ColorJitter (brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2, always_apply=False, p=0.5),
-                    #                         A.Downscale (scale_min=0.5, scale_max=0.99, interpolation=None, always_apply=False, p=0.5),
-                    #                         A.RandomBrightnessContrast (brightness_limit=0.1, contrast_limit=0.1, brightness_by_max=True, always_apply=False, p=0.5),
-                    #                         ], 
-                    #                         bbox_params=A.BboxParams(format='yolo', label_fields=['category_ids']),)              
-
-                    #     region_t1, out1 = transform_img_bboxes(out1_original, best_side, region_t1_original, transform)
-                    #     region_t2, out2 = transform_img_bboxes(out1_original, best_side, region_t1_original, transform)
-                    #     region_t3, out3 = transform_img_bboxes(out1_original, best_side, region_t1_original, transform)
-                    #     region_t4, out4 = transform_img_bboxes(out1_original, best_side, region_t1_original, transform)
-
-                    #     # fill up the concat image
-                    #     imgs_concat[:, :, 0:int(region_t1.shape[1]), 0:int(region_t1.shape[2])] = torch.from_numpy(region_t1).unsqueeze(0)
-                    #     imgs_concat[:, :, int(imgs_s.shape[3]/2):int(imgs_s.shape[3]/2) + int(region_t2.shape[1]), 0:int(region_t2.shape[2])] = torch.from_numpy(region_t2).unsqueeze(0)
-                    #     imgs_concat[:, :, int(imgs_s.shape[3]/2):int(imgs_s.shape[3]/2) + int(region_t3.shape[1]),  int(imgs_s.shape[3]/2):int(imgs_s.shape[3]/2) + int(region_t3.shape[2])] = torch.from_numpy(region_t3).unsqueeze(0)
-                    #     imgs_concat[:, :, 0:int(region_t4.shape[1]), int(imgs_s.shape[3]/2):int(imgs_s.shape[3]/2) + int(region_t4.shape[2])] = torch.from_numpy(region_t4).unsqueeze(0)
-   
-                    #     # Adjust region-level bboxes of the image-level coordinates
-                    #     # convert to bottomleft
-                    #     out2[:, 3] += imgs_t.shape[3]/2
-                    #     # convert to bottomright
-                    #     out3[:, 2] += imgs_t.shape[2]/2
-                    #     out3[:, 3] += imgs_t.shape[3]/2
-                    #     # convert to topright
-                    #     out4[:, 2] += imgs_t.shape[2]/2
-
-                    #     if not torch.is_tensor(out1):
-                    #         out1 = torch.from_numpy(out1)
-                    #     if not torch.is_tensor(out2):
-                    #         out2 = torch.from_numpy(out2)
-                    #     if not torch.is_tensor(out3):
-                    #         out3 = torch.from_numpy(out3)                                                        
-                    #     if not torch.is_tensor(out4):
-                    #         out4 = torch.from_numpy(out4)       
-                    #     out = torch.cat((out1, out2, out3, out4), dim=0)
-                    # else:
-                    #     out = torch.empty([0,7]) 
-
-                    # imgs_daca = imgs_concat
-                    # out_s = torch.from_numpy(out_s) if out_s.size else torch.empty([0,7])
-                    # b, c, h, w = imgs_daca.shape
+                    '''
                     
-                    # # create daca targets 
-                    # targets_daca_s = out_s
-                    # targets_daca_t = out
-                    # targets_daca =  targets_daca_t
+                    # -----------------------------------------------------  
+                    r = ni / max_iterations
+                    delta = 2 / (1 + math.exp(-5. * r)) - 1
+                    pred_s = self.model(batch_s['img'], pseudo=True, delta=delta)  # forward          
+                    pseudo_s, pred_s = pred_s # 源域 的 检测结果，特征图
+                
+                    pred_t = self.model(batch_t['img'], pseudo=True, delta=delta)  # forward
+                    pseudo_t, pred_t = pred_t # 目标域的 伪标签 和 特征图
 
-                    # targets_daca = targets_daca[:,:6] # remove confidence values
-                    # # normalize
-                    # targets_daca[:, [2, 4]] /= w
-                    # targets_daca[:, [3, 5]] /= h
-                    # # pred_daca = self.model(imgs_daca)  # forward
-                    # # # _, pred_daca, var_daca = pred_daca
+                    # filter pseudo detections on target images applying NMS
+                    out = uda_non_max_suppression(pseudo_t.detach(), conf_thres=0.1, iou_thres=0.5, multi_label=False)
+                    out = output_to_target(out)  # xyxy to xc,yc,w,h (2400,7)
+                    out_original = copy.deepcopy(out)    
+
+                    # # use the src GT instead of the pseudo src detections used in confmix
+                    out_s = copy.deepcopy(batch_s['bboxes'].cpu().float().numpy()) 
+                    out_s[:, 2:6] = batch_s['bboxes'].cpu().float().numpy()[:, 2:6] 
+                    out_s[:, [2, 4]] *= batch_s['img'].shape[2]  # scale to pixels 
+                    out_s[:, [3, 5]] *= batch_s['img'].shape[3]    
+                    out_s = np.insert(out_s, 6, 1, axis=1) # add confidences 
+
+                    #DACA
+                    imgs_concat = torch.ones_like(batch_s['img']) * torch.mean(batch_s['img']) #  初始化合成图像，进行再次训练
+                    if out.shape[0] > 0:
+                        # get best region from target 从目标域中选 最好的区域，进行
+                        region_t1_original, out1_original, best_side = get_best_region(out, batch_t['img'])
+                        # torch.Size([8, 3, 320, 320]),(2400,7),''topleft''  
+                        transform = A.Compose([
+                                            A.BBoxSafeRandomCrop(erosion_rate=0.1, always_apply=False, p=0.2),
+                                            A.HorizontalFlip(p=0.5),
+                                            A.Blur(blur_limit=1, always_apply=True, p=0.5), 
+                                            A.ColorJitter (brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2, always_apply=False, p=0.5),
+                                            A.Downscale (scale_min=0.5, scale_max=0.99, interpolation=None, always_apply=False, p=0.5),
+                                            A.RandomBrightnessContrast (brightness_limit=0.1, contrast_limit=0.1, brightness_by_max=True, always_apply=False, p=0.5),
+                                            ], 
+                                            bbox_params=A.BboxParams(format='yolo', label_fields=['category_ids']),)              
+
+                        region_t1, out1 = transform_img_bboxes(out1_original, best_side, region_t1_original, transform)
+                        region_t2, out2 = transform_img_bboxes(out1_original, best_side, region_t1_original, transform)
+                        region_t3, out3 = transform_img_bboxes(out1_original, best_side, region_t1_original, transform)
+                        region_t4, out4 = transform_img_bboxes(out1_original, best_side, region_t1_original, transform)
+
+                        # fill up the concat image
+                        imgs_concat[:, :, 0:int(region_t1.shape[1]), 0:int(region_t1.shape[2])] = torch.from_numpy(region_t1).unsqueeze(0)
+                        imgs_concat[:, :, int(batch_s['img'].shape[3]/2):int(batch_s['img'].shape[3]/2) + int(region_t2.shape[1]), 0:int(region_t2.shape[2])] = torch.from_numpy(region_t2).unsqueeze(0)
+                        imgs_concat[:, :, int(batch_s['img'].shape[3]/2):int(batch_s['img'].shape[3]/2) + int(region_t3.shape[1]),  int(batch_s['img'].shape[3]/2):int(batch_s['img'].shape[3]/2) + int(region_t3.shape[2])] = torch.from_numpy(region_t3).unsqueeze(0)
+                        imgs_concat[:, :, 0:int(region_t4.shape[1]), int(batch_s['img'].shape[3]/2):int(batch_s['img'].shape[3]/2) + int(region_t4.shape[2])] = torch.from_numpy(region_t4).unsqueeze(0)
+   
+                        # Adjust region-level bboxes of the image-level coordinates
+                        # convert to bottomleft
+                        out2[:, 3] += batch_t['img'].shape[3]/2
+                        # convert to bottomright
+                        out3[:, 2] += batch_t['img'].shape[2]/2
+                        out3[:, 3] += batch_t['img'].shape[3]/2
+                        # convert to topright
+                        out4[:, 2] += batch_t['img'].shape[2]/2
+
+                        if not torch.is_tensor(out1):
+                            out1 = torch.from_numpy(out1)
+                        if not torch.is_tensor(out2):
+                            out2 = torch.from_numpy(out2)
+                        if not torch.is_tensor(out3):
+                            out3 = torch.from_numpy(out3)                                                        
+                        if not torch.is_tensor(out4):
+                            out4 = torch.from_numpy(out4)       
+                        out = torch.cat((out1, out2, out3, out4), dim=0)
+                    else:
+                        out = torch.empty([0,7]) 
+
+                    imgs_daca = imgs_concat
+                    out_s = torch.from_numpy(out_s) if out_s.size else torch.empty([0,7])
+                    b, c, h, w = imgs_daca.shape
+                    
+                    # create daca targets 
+                    targets_daca_s = out_s
+                    targets_daca_t = out
+                    targets_daca =  targets_daca_t
+
+                    targets_daca = targets_daca[:,:6] # remove confidence values
+                    # normalize
+                    targets_daca[:, [2, 4]] /= w
+                    targets_daca[:, [3, 5]] /= h
+                    # pred_daca = self.model(imgs_daca)  # forward
+                    # # _, pred_daca, var_daca = pred_daca
                      
-                    # # self-supervised consistency loss term on the mixed samples
-                    # self.loss_daca, self.loss_items_daca = self.model(imgs_daca)
 
-                    # gamma = 1
-                    # self.total_loss = self.loss + self.loss_daca * gamma
+                    # supervised detector loss term on the labelled source samples
+                    # 源域的检测损失
+                    self.source_loss, self.source_loss_items = self.model(batch_s) # pred_s
+
+                    # self-supervised consistency loss term on the mixed samples
+                    # 这里imgs_daca必须是个字典，才去计算loss
+                    self.loss_daca, self.loss_items_daca = self.model(imgs_daca)
+
+                    # 计算最终损失
+                    lambda_weight = 1  # 超参数，用于平衡
+                    self.loss = self.source_loss + lambda_weight * self.loss_daca
+                    self.loss_items = self.source_loss_items + self.loss_items_daca # 可选：是否将MSE损失也加入loss_items
+
+                    # print('最终实际的loss_items',self.loss_items)
+                    # 多GPU训练时的损失调整
+                    if RANK != -1:
+                        self.loss *= world_size
+                    # 更新平均损失
+                    self.tloss = (
+                        (self.tloss * i + self.loss_items) / (i + 1) if self.tloss is not None else self.loss_items
+                    )
 
               
                 

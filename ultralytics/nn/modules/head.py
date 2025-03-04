@@ -43,6 +43,7 @@ class Detect(nn.Module):
         self.dfl = DFL(self.reg_max) if self.reg_max > 1 else nn.Identity()
 
     def forward(self, x, pseudo=False ,delta=0.5):
+        print('************************* head/forward-pseudo')
         v = []  # variance output
 
         for i in range(self.nl):
@@ -50,7 +51,7 @@ class Detect(nn.Module):
             x[i] = torch.cat((self.cv2[i](x[i]), self.cv3[i](x[i])), 1)
 
         # Inference path
-        shape = x[0].shape  # BCHW 特征图形状
+        shape = x[0].shape  # B C H W 特征图形状
         # 将每个检测层的输出拼接在一起
         x_cat = torch.cat([xi.view(shape[0], self.no, -1) for xi in x], 2)
         # 动态生成锚点：如果输入形状发生变化，重新生成锚点和步幅
@@ -75,39 +76,31 @@ class Detect(nn.Module):
             norm = self.strides / (self.stride[0] * img_size) # 预计算归一化因子以提高数值稳定性。
             # dist2bbox: 将距离转换为边界框坐标。
             dbox = dist2bbox(self.dfl(box) * norm, self.anchors.unsqueeze(0) * norm[:, :2], xywh=True, dim=1)
-
-        # Get detection confidence and bounding box confidence
-        #  分类分支的输出，形状为 (batch_size, self.nc, num_anchors)。
-        cls_conf = cls.sigmoid()  # Class confidence (probability)
-        box_conf = torch.mean(cls_conf, dim=1, keepdim=True)  # Bounding box confidence (average class confidence)
-
+       
         y = torch.cat((dbox, cls.sigmoid()), 1) # 拼接结果：将解码后的边界框 和 分类分数 拼接在一起。
         # return y if self.export else (y, x) # 如果处于导出模式，返回 y；否则返回 (y, x)。
-        
-        # # # 如果处于训练模式，直接返回特征图 x。
-        # if self.training:  # Training path
-        #     return x
 
-        if self.training and not pseudo:
+        if self.training and not pseudo: # 训练模式，返回特征图
             return x
         elif pseudo:
-             # Recover variances from the output
-            v = [xi[..., -4:] for xi in x]  # variances are the last 4 channels
-            # Apply pseudo labelling logic
-            c_det = y[..., 4].detach()  # detection confidence
-            c_bbx = (1 - torch.mean(torch.cat(v, dim=1), dim=-1)).detach()  # bounding box confidence
-            c_comb = c_det * c_bbx  # combined confidence
-            y[..., 4] = (1 - delta) * c_det + delta * c_comb  # update confidence with delta
-            # Remove variances from the output
-            y = y[..., :-4]
-            return y, x, v  # return detections, feature maps, and variances
-        
-        
+            cls_conf = cls.sigmoid().detach()  # Class confidence (probability)
+            box_conf = torch.mean(cls_conf, dim=1, keepdim=True).detach()  # Bounding box confidence (average class confidence)
+            cls_conf = (1 - delta) * cls_conf + delta * box_conf # update confidence with delta
+            y = torch.cat((dbox, cls_conf), 1)
+            return (y, x)  # 伪标签模型，返回 新检测结果 和 特征图
         elif self.export:
-            return y # return detections for export
+            return y # 导出模式，返回检测结果
         else:
-            return (y,x) # return detections and feature maps for inference
-
+            return (y,x) # 推理模型，返回检测结果和特征图
+        #  # Recover variances from the output
+            # v = [xi[..., -4:] for xi in x]  # variances are the last 4 channels
+            # # Apply pseudo labelling logic
+            # c_det = y[..., 4].detach()  # detection confidence
+            # c_bbx = (1 - torch.mean(torch.cat(v, dim=1), dim=-1)).detach()  # bounding box confidence
+            # c_comb = c_det * c_bbx  # combined confidence
+            # y[..., 4] = (1 - delta) * c_det + delta * c_comb  # update confidence with delta
+            # # Remove variances from the output
+            # y = y[..., :-4]
 
     
     def bias_init(self):

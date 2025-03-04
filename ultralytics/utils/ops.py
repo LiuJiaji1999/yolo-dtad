@@ -432,17 +432,18 @@ def non_max_suppression(
 
     return output
 
-def uda_non_max_suppression(prediction,
-                        conf_thres=0.25,
-                        iou_thres=0.45,
-                        classes=None,
-                        agnostic=False,
-                        multi_label=False,
-                        labels=(),
-                        max_det=300,
-                        nc=0,  # number of classes
-                        max_nms=30000,
-                        max_wh=7680):
+def uda_non_max_suppression(
+        prediction,
+        conf_thres=0.25,
+        iou_thres=0.45,
+        classes=None,
+        agnostic=False,
+        multi_label=False,
+        labels=(),
+        max_det=300,
+        nc=0,  # number of classes
+        max_nms=30000,
+        max_wh=7680):
     """
     Perform non-maximum suppression (NMS) on a set of boxes.
 
@@ -483,7 +484,7 @@ def uda_non_max_suppression(prediction,
             lb = labels[xi]
             v = torch.zeros((len(lb), nc + 5), device=x.device)
             v[:, :4] = lb[:, 1:5]  # box
-            v[:, 4] = 1.0  # conf
+            # v[:, 4] = 1.0  # conf
             v[range(len(lb)), lb[:, 0].long() + 5] = 1.0  # cls
             x = torch.cat((x, v), 0)
 
