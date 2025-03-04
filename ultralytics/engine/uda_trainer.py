@@ -445,6 +445,12 @@ class UDABaseTrainer:
 
                     # batch 是字典就计算loss,不是字典就计算 预测值
 
+                    r = ni / max_iterations
+                    delta = 2 / (1 + math.exp(-5. * r)) - 1
+                    pred_s = self.model(batch_s['img'], pseudo=True, delta=delta)  # forward          
+                    pseudo_s, pred_s, var_s = pred_s
+
+                    print('-----------------------------------------------------')
                     # 源域的检测损失
                     self.source_loss, self.source_loss_items = self.model(batch_s)
                     # print('源域实际loss',self.source_loss)
