@@ -171,7 +171,7 @@ def get_best_region(out, imgs_t):
         out = torch.empty([0,7])  # 如果没有检测到目标，返回空张量
     
     # 最佳区域的图像部分,
-    #  最佳区域中的目标框信息（格式 [batch_id, class, cx, cy, w, h, conf]）
+    # 最佳区域中的目标框信息（格式 [batch_id, class, cx, cy, w, h, conf]）
     # 最佳区域的位置（topleft，bottomleft，bottomright，topright）
     return region_t, out, best_side 
 

@@ -442,9 +442,12 @@ class UDABaseTrainer:
                 with torch.cuda.amp.autocast(self.amp):
                     batch_s = self.preprocess_batch(batch_S)
                     batch_t = self.preprocess_batch(batch_T)
-                    # self.model(batch),
-                        # batch是字典就计算loss,不是字典一般是img 就计算forward预测值
-
+                    '''
+                    self.model(batch)
+                        batch是字典就计算loss,不是字典一般是img 就计算forward预测值
+                        uda_task/forward
+                    '''
+                    
                     # ----------------------------------------------------- 
                     # 源域 目标域的特征图 差异，作为第二个损失 最终优化目标为 与源域的检测损失 ，权重相加
                     '''
@@ -510,8 +513,8 @@ class UDABaseTrainer:
                     # -----------------------------------------------------  
                     r = ni / max_iterations
                     delta = 2 / (1 + math.exp(-5. * r)) - 1
-                    pred_s = self.model(batch_s['img'], pseudo=True, delta=delta)  # forward          
-                    pseudo_s, pred_s = pred_s # 源域 的 检测结果，特征图
+                    # pred_s = self.model(batch_s['img'], pseudo=True, delta=delta)  # forward          
+                    # pseudo_s, pred_s = pred_s # 源域 的 检测结果，特征图
                 
                     pred_t = self.model(batch_t['img'], pseudo=True, delta=delta)  # forward
                     pseudo_t, pred_t = pred_t # 目标域的 伪标签 和 特征图
@@ -521,20 +524,13 @@ class UDABaseTrainer:
                     out = output_to_target(out)  # [batch_id, class_id, x, y, w, h, conf] (16,7)
                     out_original = copy.deepcopy(out)    
 
-                    # # use the src GT instead of the pseudo src detections used in confmix
-                    # 置信度混合（confmix） ：使用 源真实标签（GT）代替伪源检测中使用的。
-                    # out_s = copy.deepcopy(batch_s['bboxes'].cpu().float().numpy())  # [109,4]
-                    # out_s[:, 2:6] = batch_s['bboxes'].cpu().float().numpy()[:, 2:6] 
-                    # out_s[:, [2, 4]] *= batch_s['img'].shape[2]  # scale to pixels 
-                    # out_s[:, [3, 5]] *= batch_s['img'].shape[3]    
-                    # out_s = np.insert(out_s, 6, 1, axis=1) # add confidences 
-
                     #DACA
+                    # 创建一个与源图像 imgs_s 形状相同的全 1 张量，并将其乘以 imgs_s 的均值。
+                    # 目的是生成一个与 imgs_s 大小相同的空白图像，用于后续拼接增强后的图像。
                     imgs_concat = torch.ones_like(batch_s['img']) * torch.mean(batch_s['img']) #  初始化合成图像，进行再次训练
-                    if out.shape[0] > 0: #（16，4）
-                        # get best region from target 从目标域中选 最好的区域，进行
-                        region_t1_original, out1_original, best_side = get_best_region(out, batch_t['img'])
-                        # torch.Size([8, 3, 320, 320]),(2400,7),''topleft''  
+                    if out.shape[0] > 0: #（16，4） 如果 out 的行数大于 0，说明有目标框需要处理。
+                        # get best region from target 从目标域中选 最好的区域
+                        region_t1_original, out1_original, best_side = get_best_region(out, batch_t['img']) # torch.Size([4, 3, 320, 320]),(16,7),''topleft''  
 
                         transform = A.Compose([
                                             A.BBoxSafeRandomCrop(erosion_rate=0.1, always_apply=False, p=0.2),
@@ -545,19 +541,22 @@ class UDABaseTrainer:
                                             A.RandomBrightnessContrast (brightness_limit=0.1, contrast_limit=0.1, brightness_by_max=True, always_apply=False, p=0.5),
                                             ], 
                                             bbox_params=A.BboxParams(format='yolo', label_fields=['category_ids']),)              
-
+                        
+                        # 对最佳区域进行增强
                         region_t1, out1 = transform_img_bboxes(out1_original, best_side, region_t1_original, transform)
                         region_t2, out2 = transform_img_bboxes(out1_original, best_side, region_t1_original, transform)
                         region_t3, out3 = transform_img_bboxes(out1_original, best_side, region_t1_original, transform)
                         region_t4, out4 = transform_img_bboxes(out1_original, best_side, region_t1_original, transform)
 
                         # fill up the concat image
+                        # 将增强后的 4 个区域 region_t1 到 region_t4 拼接到 imgs_concat 的不同位置，形成一张新的拼接图像。
                         imgs_concat[:, :, 0:int(region_t1.shape[1]), 0:int(region_t1.shape[2])] = torch.from_numpy(region_t1).unsqueeze(0)
                         imgs_concat[:, :, int(batch_s['img'].shape[3]/2):int(batch_s['img'].shape[3]/2) + int(region_t2.shape[1]), 0:int(region_t2.shape[2])] = torch.from_numpy(region_t2).unsqueeze(0)
                         imgs_concat[:, :, int(batch_s['img'].shape[3]/2):int(batch_s['img'].shape[3]/2) + int(region_t3.shape[1]),  int(batch_s['img'].shape[3]/2):int(batch_s['img'].shape[3]/2) + int(region_t3.shape[2])] = torch.from_numpy(region_t3).unsqueeze(0)
                         imgs_concat[:, :, 0:int(region_t4.shape[1]), int(batch_s['img'].shape[3]/2):int(batch_s['img'].shape[3]/2) + int(region_t4.shape[2])] = torch.from_numpy(region_t4).unsqueeze(0)
    
                         # Adjust region-level bboxes of the image-level coordinates
+                        # 调整目标框坐标
                         # convert to bottomleft
                         out2[:, 3] += batch_t['img'].shape[3]/2
                         # convert to bottomright
@@ -565,7 +564,8 @@ class UDABaseTrainer:
                         out3[:, 3] += batch_t['img'].shape[3]/2
                         # convert to topright
                         out4[:, 2] += batch_t['img'].shape[2]/2
-
+                        
+                        # 将目标框转换为张量
                         if not torch.is_tensor(out1):
                             out1 = torch.from_numpy(out1)
                         if not torch.is_tensor(out2):
@@ -574,34 +574,38 @@ class UDABaseTrainer:
                             out3 = torch.from_numpy(out3)                                                        
                         if not torch.is_tensor(out4):
                             out4 = torch.from_numpy(out4)       
-                        out = torch.cat((out1, out2, out3, out4), dim=0)
+                        out = torch.cat((out1, out2, out3, out4), dim=0) # shape (32,7)
                     else:
                         out = torch.empty([0,7]) 
 
-                    imgs_daca = imgs_concat
+                    imgs_daca = imgs_concat # 合成域的图像
                     # out_s = torch.from_numpy(out_s) if out_s.size else torch.empty([0,7])
-                    b, c, h, w = imgs_daca.shape
+                    b, c, h, w = imgs_daca.shape # [4,3,640,640]
                     
                     # create daca targets 
                     # targets_daca_s = out_s
-                    targets_daca_t = out
-                    targets_daca =  targets_daca_t
+                    targets_daca_t = out # (32,7) 合成域的 GT
+                    targets_daca =  targets_daca_t # (32,7)
 
-                    targets_daca = targets_daca[:,:6] # remove confidence values
+                    targets_daca = targets_daca[:,:6] # remove confidence values (32,6)
                     # normalize
                     targets_daca[:, [2, 4]] /= w
                     targets_daca[:, [3, 5]] /= h
-                    # pred_daca = self.model(imgs_daca)  # forward
-                    # # _, pred_daca, var_daca = pred_daca
-                     
-
+                    
                     # supervised detector loss term on the labelled source samples
                     # 源域的检测损失
                     self.source_loss, self.source_loss_items = self.model(batch_s) # pred_s
 
                     # self-supervised consistency loss term on the mixed samples
-                    # 这里imgs_daca必须是个字典，才去计算loss
-                    self.loss_daca, self.loss_items_daca = self.model(imgs_daca)
+                    # 合成域的 二次检测
+                    batch_daca = {}
+                    batch_daca['ori_shape'] = batch_s['ori_shape']
+                    batch_daca['resized_shape'] = [[640,640],[640,640],[640,640],[640,640]]
+                    batch_daca['img'] = imgs_daca
+                    batch_daca['cls'] = targets_daca[:,1]
+                    batch_daca['bboxes'] = targets_daca[:,2:]
+                    batch_daca['batch_idx'] = targets_daca[:,0]
+                    self.loss_daca, self.loss_items_daca = self.model(batch_daca)
 
                     # 计算最终损失
                     lambda_weight = 1  # 超参数，用于平衡
@@ -616,8 +620,6 @@ class UDABaseTrainer:
                     self.tloss = (
                         (self.tloss * i + self.loss_items) / (i + 1) if self.tloss is not None else self.loss_items
                     )
-
-              
                 
                 # Backward
                 self.scaler.scale(self.loss).backward()
