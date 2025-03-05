@@ -517,7 +517,7 @@ class UDABaseTrainer:
                     # pseudo_s, pred_s = pred_s # 源域 的 检测结果，特征图
                 
                     pred_t = self.model(batch_t['img'], pseudo=True, delta=delta)  # forward
-                    pseudo_t, pred_t = pred_t # 目标域的 伪标签 和 特征图
+                    pseudo_t, _ = pred_t # 目标域的 伪标签 和 特征图 pseudo_t.shape(4,5,8400)
 
                     # filter pseudo detections on target images applying NMS
                     out = uda_non_max_suppression(pseudo_t.detach(), conf_thres=0.1, iou_thres=0.5, multi_label=False)
@@ -587,24 +587,29 @@ class UDABaseTrainer:
                     targets_daca_t = out # (32,7) 合成域的 GT
                     targets_daca =  targets_daca_t # (32,7)
 
-                    targets_daca = targets_daca[:,:6] # remove confidence values (32,6)
+                    targets_daca = targets_daca[:,:6] # remove confidence values [32,6]
                     # normalize
                     targets_daca[:, [2, 4]] /= w
                     targets_daca[:, [3, 5]] /= h
                     
                     # supervised detector loss term on the labelled source samples
                     # 源域的检测损失
-                    self.source_loss, self.source_loss_items = self.model(batch_s) # pred_s
-
+                    self.source_loss, self.source_loss_items = self.model(batch_s) # pred_s 
+                    '''
+                    batch_s['img'].shape [4,3,640,640]
+                    batch_s['cls'].shape [109,1]
+                    batch_s['bboxes'].shape [109,4]
+                    batch_s['batch_idx'].shape [109]
+                    '''
                     # self-supervised consistency loss term on the mixed samples
                     # 合成域的 二次检测
                     batch_daca = {}
                     batch_daca['ori_shape'] = batch_s['ori_shape']
                     batch_daca['resized_shape'] = [[640,640],[640,640],[640,640],[640,640]]
-                    batch_daca['img'] = imgs_daca
-                    batch_daca['cls'] = targets_daca[:,1]
-                    batch_daca['bboxes'] = targets_daca[:,2:]
-                    batch_daca['batch_idx'] = targets_daca[:,0]
+                    batch_daca['img'] = imgs_daca #[4,3,640,640]
+                    batch_daca['cls'] = targets_daca[:,1].unsqueeze(-1) # [32] -> [32,1]
+                    batch_daca['bboxes'] = targets_daca[:,2:] # [32,4]
+                    batch_daca['batch_idx'] = targets_daca[:,0] # [32]
                     self.loss_daca, self.loss_items_daca = self.model(batch_daca)
 
                     # 计算最终损失

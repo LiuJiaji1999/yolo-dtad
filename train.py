@@ -4,7 +4,8 @@ from ultralytics import YOLO
 
 if __name__ == '__main__':
     model = YOLO('ultralytics/cfg/models/v8/yolov8m.yaml')
-    model.load('yolov8m.pt') # loading pretrain weights
+    # model.load('yolov8m.pt') # loading pretrain weights
+    model.load('/home/lenovo/data/liujiaji/YOLO-DTAD/runs/train/exp/weights/best.pt') # 合成域 
     # model.load('/home/lenovo/data/liujiaji/yolov8/ultralytics-main/runs/train/exp112/weights/best.pt') # loading pretrain weights
     # model = RTDETR('ultralytics/cfg/models/v8/yolov8m-swintransformer.yaml')
 

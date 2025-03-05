@@ -101,22 +101,42 @@ class TaskAlignedAssigner(nn.Module):
 
     def get_box_metrics(self, pd_scores, pd_bboxes, gt_labels, gt_bboxes, mask_gt):
         """Compute alignment metric given predicted and ground truth bounding boxes."""
-        na = pd_bboxes.shape[-2]
+        na = pd_bboxes.shape[-2] ## number of anchors
         mask_gt = mask_gt.bool()  # b, max_num_obj, h*w
+        # Initialize tensors for overlaps and bbox_scores
         overlaps = torch.zeros([self.bs, self.n_max_boxes, na], dtype=pd_bboxes.dtype, device=pd_bboxes.device)
         bbox_scores = torch.zeros([self.bs, self.n_max_boxes, na], dtype=pd_scores.dtype, device=pd_scores.device)
-
+        # Create indices for selecting scores
         ind = torch.zeros([2, self.bs, self.n_max_boxes], dtype=torch.long)  # 2, b, max_num_obj
         ind[0] = torch.arange(end=self.bs).view(-1, 1).expand(-1, self.n_max_boxes)  # b, max_num_obj
         ind[1] = gt_labels.squeeze(-1)  # b, max_num_obj
         # Get the scores of each grid for each gt cls
-        bbox_scores[mask_gt] = pd_scores[ind[0], :, ind[1]][mask_gt]  # b, max_num_obj, h*w
 
+        # print("pd_scores shape:", pd_scores.shape)  # 打印 pd_scores 的形状 torch.Size([4, 8400, 1])
+        # print("ind:", ind)  # 打印 ind 的值 tensor[0]
+        # print("mask_gt shape:", mask_gt.shape)  # 打印 mask_gt 的形状 torch.Size([4, 40, 8400])
+        # print("mask_gt values:", mask_gt)  # 打印 mask_gt 的值 tensor[false]
+        # Ensure indices are within valid range
+        if (ind[1] >= pd_scores.shape[1]).any():
+            raise ValueError(f"Invalid gt_labels: some values are out of range for pd_scores shape {pd_scores.shape}")
+
+        # Get the scores of each grid for each gt class
+        try:
+            # Select scores using indices and apply mask
+            selected_scores = pd_scores[ind[0], :, ind[1]]  # [b, max_num_obj, h*w]
+            bbox_scores[mask_gt] = selected_scores[mask_gt]  # Assign scores where mask_gt is True
+        except Exception as e:
+            print(f"Error in selecting scores: {e}")
+            raise
+
+        # bbox_scores[mask_gt] = pd_scores[ind[0], :, ind[1]][mask_gt]  # b, max_num_obj, h*w
+
+        # Calculate IoU between predicted and ground truth boxes
         # (b, max_num_obj, 1, 4), (b, 1, h*w, 4)
         pd_boxes = pd_bboxes.unsqueeze(1).expand(-1, self.n_max_boxes, -1, -1)[mask_gt]
         gt_boxes = gt_bboxes.unsqueeze(2).expand(-1, -1, na, -1)[mask_gt]
         overlaps[mask_gt] = self.iou_calculation(gt_boxes, pd_boxes)
-
+        # Compute alignment metric
         align_metric = bbox_scores.pow(self.alpha) * overlaps.pow(self.beta)
         return align_metric, overlaps
 
