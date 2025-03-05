@@ -521,7 +521,6 @@ class UDABaseTrainer:
 
                     # filter pseudo detections on target images applying NMS
                     out = non_max_suppression(pseudo_t.detach(), conf_thres=0.1, iou_thres=0.5, multi_label=False)
-
                     out = output_to_target(out)  # [batch_id, class_id, x, y, w, h, conf] (16,7)
                     out_original = copy.deepcopy(out)    
 
@@ -657,8 +656,10 @@ class UDABaseTrainer:
                         % (f"{epoch + 1}/{self.epochs}", mem, *losses, batch_s["cls"].shape[0], batch_s["img"].shape[-1])
                     )
                     self.run_callbacks("on_batch_end")
-                    if self.args.plots and ni in self.plot_idx:
-                        self.plot_training_samples(batch_s, ni)
+                     # Plot ###############################
+                    if self.args.pots and ni in self.plot_idx:
+                        self.plot_training_samples(batch_t, ni)
+                        self.plot_uda_samples(batch_daca,ni)
 
                 self.run_callbacks("on_train_batch_end")
 
@@ -851,6 +852,19 @@ class UDABaseTrainer:
     def plot_training_samples(self, batch, ni):
         """Plots training samples during YOLO training."""
         pass
+
+    # TODO: may need to put these following functions into callback
+    def plot_uda_samples(self, batch, ni):
+        """Plots uda_training samples during YOLO training."""
+        plot_images(
+            images=batch["img"],
+            batch_idx=batch["batch_idx"],
+            cls=batch["cls"].squeeze(-1),
+            bboxes=batch["bboxes"],
+            paths=batch["im_file"],
+            fname=self.save_dir / f"uda_train_batch{ni}.jpg",
+            on_plot=self.on_plot,
+        )
 
     def plot_training_labels(self):
         """Plots training labels for YOLO model."""

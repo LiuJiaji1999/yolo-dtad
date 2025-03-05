@@ -1008,27 +1008,6 @@ def output_to_target(output, max_det=300):
 #     return np.array(targets)
 
 
-def uda_output_to_target(output, max_det=300):
-    targets = []
-    for i, o in enumerate(output):
-        # 限制最大检测框数量
-        o = o[:max_det]
-        if o.numel() == 0:  # 如果当前 batch 没有检测框
-            continue      
-        # 分割为 box, conf, cls
-        box, conf, cls = o[:, :4], o[:, 4], o[:, 5]       
-        # 转换为 (x, y, w, h)
-        box = ops.xyxy2xywh(box.cpu().numpy())  # 转换为 (x, y, w, h)
-        conf = conf.cpu().numpy()
-        cls = cls.cpu().numpy()      
-        # 添加 batch_id，并拼接为目标格式
-        batch_id = np.full((conf.shape[0], 1), i)  # 添加 batch_id
-        targets.append(np.hstack((batch_id, cls[:, None], box, conf[:, None])))
-    # 将所有目标拼接成一个数组
-    if len(targets) == 0:
-        return np.zeros((0, 7))  # 如果没有目标，返回空数组
-    return np.vstack(targets)
-
 
 def output_to_rotated_target(output, max_det=300):
     """Convert model output to target format [batch_id, class_id, x, y, w, h, conf] for plotting."""

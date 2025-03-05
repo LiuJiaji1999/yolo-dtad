@@ -23,7 +23,7 @@ if __name__ == '__main__':
                 # fraction=0.2,
                 patience=100,
                 cos_lr = True,
-                project='runs/debug',
+                project='runs/train',
                 name='exp',
                 
                 # conf = 0.02 , ## focal-loss 
