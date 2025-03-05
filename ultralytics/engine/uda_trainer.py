@@ -649,8 +649,8 @@ class UDABaseTrainer:
                         % (f"{epoch + 1}/{self.epochs}", mem, *losses, batch_s["cls"].shape[0], batch_s["img"].shape[-1])
                     )
                     self.run_callbacks("on_batch_end")
-                    # if self.args.plots and ni in self.plot_idx:
-                    #     self.plot_training_samples(batch, ni)
+                    if self.args.plots and ni in self.plot_idx:
+                        self.plot_training_samples(batch_s, ni)
 
                 self.run_callbacks("on_train_batch_end")
 
