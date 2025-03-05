@@ -80,7 +80,7 @@ class Detect(nn.Module):
         if self.training and not pseudo: # 训练模式，返回特征图
             return x
         elif pseudo:
-            print('****************** head/forward')
+            print('****************** head/forward_pseudo')
             cls_conf = cls.sigmoid().detach()  # Class confidence (probability)
             box_conf = torch.mean(cls_conf, dim=1, keepdim=True).detach()  # Bounding box confidence (average class confidence)
             cls_conf = (1 - delta) * cls_conf + delta * box_conf # update confidence with delta
