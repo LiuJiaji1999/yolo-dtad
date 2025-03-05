@@ -112,24 +112,30 @@ class TaskAlignedAssigner(nn.Module):
         ind[1] = gt_labels.squeeze(-1)  # b, max_num_obj
         # Get the scores of each grid for each gt cls
 
-        # print("pd_scores shape:", pd_scores.shape)  # 打印 pd_scores 的形状 torch.Size([4, 8400, 1])
-        # print("ind:", ind)  # 打印 ind 的值 tensor[0]
-        # print("mask_gt shape:", mask_gt.shape)  # 打印 mask_gt 的形状 torch.Size([4, 40, 8400])
-        # print("mask_gt values:", mask_gt)  # 打印 mask_gt 的值 tensor[false]
-        # Ensure indices are within valid range
-        if (ind[1] >= pd_scores.shape[1]).any():
-            raise ValueError(f"Invalid gt_labels: some values are out of range for pd_scores shape {pd_scores.shape}")
+        # print(f"pd_scores shape: {pd_scores.shape}")  # [b, num_classes, h*w] [4,8400,1]
+        # print(f"gt_labels shape: {gt_labels.shape}, values: {gt_labels}")  # [b, max_num_obj] [4,40,1],[0]  -[4,8,1],target[cls]
+        # print(f"ind[0] shape: {ind[0].shape}, values: {ind[0]}")  # [b, max_num_obj] [4,40] -[4,8]
+        # print(f"ind[1] shape: {ind[1].shape}, values: {ind[1]}")  # [b, max_num_obj] [4,40]- [4,8]
+        # print(f"mask_gt shape: {mask_gt.shape}")  # [b, max_num_obj, h*w] [4,40,8400] - [4,8,8400]
 
-        # Get the scores of each grid for each gt class
-        try:
-            # Select scores using indices and apply mask
-            selected_scores = pd_scores[ind[0], :, ind[1]]  # [b, max_num_obj, h*w]
-            bbox_scores[mask_gt] = selected_scores[mask_gt]  # Assign scores where mask_gt is True
-        except Exception as e:
-            print(f"Error in selecting scores: {e}")
-            raise
+        #  # Ensure indices are within valid range
+        # num_classes = pd_scores.shape[1]
+        # if (gt_labels < 0).any() or (gt_labels >= num_classes).any():
+        #     raise ValueError(f"Invalid gt_labels: values must be in [0, {num_classes - 1}], but got {gt_labels}")
+        # if (ind[1] < 0).any() or (ind[1] >= pd_scores.shape[1]).any():
+        #     raise ValueError(f"Invalid ind[1]: values must be in [0, {pd_scores.shape[1] - 1}], but got {ind[1]}")
+        # if mask_gt.shape != (self.bs, self.n_max_boxes, na):
+        #     raise ValueError(f"Invalid mask_gt shape: expected {(self.bs, self.n_max_boxes, na)}, but got {mask_gt.shape}")
 
-        # bbox_scores[mask_gt] = pd_scores[ind[0], :, ind[1]][mask_gt]  # b, max_num_obj, h*w
+        # # Get the scores of each grid for each gt class
+        # try:
+        #     selected_scores = pd_scores[ind[0], :, ind[1]]  # [b, max_num_obj, h*w]
+        #     bbox_scores[mask_gt] = selected_scores[mask_gt]  # Assign scores where mask_gt is True
+        # except Exception as e:
+        #     print(f"Error in selecting scores: {e}")
+        #     raise
+
+        bbox_scores[mask_gt] = pd_scores[ind[0], :, ind[1]][mask_gt]  # b, max_num_obj, h*w
 
         # Calculate IoU between predicted and ground truth boxes
         # (b, max_num_obj, 1, 4), (b, 1, h*w, 4)

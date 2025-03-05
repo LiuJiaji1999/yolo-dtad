@@ -980,7 +980,7 @@ def plot_tune_results(csv_file="tune_results.csv"):
 
 
 def output_to_target(output, max_det=300):
-    """Convert model output to target format [x1, y1, x2, y2, conf, cls] -》 [batch_id, class_id, x, y, w, h, conf] for plotting."""
+    """Convert model output to target format [x1, y1, x2, y2, conf, cls] -> [batch_id, class_id, x, y, w, h, conf] for plotting."""
     targets = []
     for i, o in enumerate(output):
         # o[:max_det, :6]：从当前批次的检测结果中提取最多 max_det 个检测框，并只保留前 6 列数据（通常是 [x1, y1, x2, y2, conf, cls]）。

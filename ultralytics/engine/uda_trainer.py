@@ -520,11 +520,12 @@ class UDABaseTrainer:
                     pseudo_t, _ = pred_t # 目标域的 伪标签 和 特征图 pseudo_t.shape(4,5,8400)
 
                     # filter pseudo detections on target images applying NMS
-                    out = uda_non_max_suppression(pseudo_t.detach(), conf_thres=0.1, iou_thres=0.5, multi_label=False)
+                    out = non_max_suppression(pseudo_t.detach(), conf_thres=0.1, iou_thres=0.5, multi_label=False)
+
                     out = output_to_target(out)  # [batch_id, class_id, x, y, w, h, conf] (16,7)
                     out_original = copy.deepcopy(out)    
 
-                    #DACA
+                    # DACA
                     # 创建一个与源图像 imgs_s 形状相同的全 1 张量，并将其乘以 imgs_s 的均值。
                     # 目的是生成一个与 imgs_s 大小相同的空白图像，用于后续拼接增强后的图像。
                     imgs_concat = torch.ones_like(batch_s['img']) * torch.mean(batch_s['img']) #  初始化合成图像，进行再次训练
@@ -586,6 +587,8 @@ class UDABaseTrainer:
                     # targets_daca_s = out_s
                     targets_daca_t = out # (32,7) 合成域的 GT
                     targets_daca =  targets_daca_t # (32,7)
+                    pred_daca = self.model(imgs_daca, pseudo=True)  # forward
+                    _ , pred_daca  = pred_daca # 检测结果 和 特征图
 
                     targets_daca = targets_daca[:,:6] # remove confidence values [32,6]
                     # normalize
