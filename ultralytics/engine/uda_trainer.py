@@ -52,8 +52,8 @@ from ultralytics.nn.extra_modules.kernel_warehouse import get_temperature
 
 #############
 
-from ultralytics.utils.ops import xywh2xyxy, uda_non_max_suppression,non_max_suppression
-from ultralytics.utils.plotting import output_to_target, plot_images,uda_output_to_target
+from ultralytics.utils.ops import xywh2xyxy, non_max_suppression
+from ultralytics.utils.plotting import output_to_target, plot_images
 # from ultralytics.models.yolo.detect.uda_train import  UDADetectionTrainer
 import copy
 import albumentations as A
@@ -657,9 +657,11 @@ class UDABaseTrainer:
                     )
                     self.run_callbacks("on_batch_end")
                      # Plot ###############################
-                    if self.args.pots and ni in self.plot_idx:
+                    if self.args.plots and ni in self.plot_idx:
                         self.plot_training_samples(batch_t, ni)
                         self.plot_uda_samples(batch_daca,ni)
+
+                      
 
                 self.run_callbacks("on_train_batch_end")
 

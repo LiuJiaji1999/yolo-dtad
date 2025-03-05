@@ -43,13 +43,10 @@ class Detect(nn.Module):
         self.dfl = DFL(self.reg_max) if self.reg_max > 1 else nn.Identity()
 
     def forward(self, x, pseudo=False ,delta=0.5):
-        print('************************* head/forward-pseudo')
-        v = []  # variance output
-
+        """Concatenates and returns pseudo predicted bounding boxes and class probabilities for Target."""
         for i in range(self.nl):
             # 对每个检测层的输入进行卷积操作，并将回归和分类分支的输出拼接在一起。
             x[i] = torch.cat((self.cv2[i](x[i]), self.cv3[i](x[i])), 1)
-
         # Inference path
         shape = x[0].shape  # B C H W 特征图形状
         # 将每个检测层的输出拼接在一起
@@ -83,6 +80,7 @@ class Detect(nn.Module):
         if self.training and not pseudo: # 训练模式，返回特征图
             return x
         elif pseudo:
+            print('****************** head/forward')
             cls_conf = cls.sigmoid().detach()  # Class confidence (probability)
             box_conf = torch.mean(cls_conf, dim=1, keepdim=True).detach()  # Bounding box confidence (average class confidence)
             cls_conf = (1 - delta) * cls_conf + delta * box_conf # update confidence with delta
