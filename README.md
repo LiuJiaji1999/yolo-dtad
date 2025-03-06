@@ -16,10 +16,11 @@ This is our PyTorch implementation of the paper "[`YOLO-DTAD: Dynamic Task Align
 First, clone the project and configure the environment.
 
 ```bash
+# 一台 24G, NVIDIA GeForce RTX 3090  
 git clone https://github.com/LiuJiaji1999/yolo-dtad.git 
 ultralytics版本为8.1.9, ultralytics/__init__.py/__version__             
 pip install -r
-    # 3090 单卡  ObjectDetection/DA
+    # ObjectDetection/DA
     python: 3.8.18 / [3.8.16]
     torch:  1.12.0+cu113 / [1.13.1+cu117]
     torchvision: 0.13.0+cu113 / [0.14.1+cu117] 
@@ -34,7 +35,7 @@ pip install -r
 <details open>
 <summary>Train</summary>
 
-```python
+```shell
 python train.py
 ```
 </details>
@@ -49,10 +50,9 @@ python val.py
 </details>
 
 
-
-
-## EGC Schematic Diagram
-The lightweight convolutional module EGC incorporates the design philosophies of GhostNet and C2f modules, significantly enhancing the capture of key information in detection targets through the ECA attention mechanism. The structural diagram of the EGC module is shown below.
+#### DTADH 
+To improve the detection performance for similar categories, the DTAD head (DTADH) is designed based on
+the decoupled head structure of the single-stage model.
 
 <div align="center">
     <img src="img/DTADH_1.png" width="500" alt="DTADH">
@@ -62,14 +62,34 @@ The lightweight convolutional module EGC incorporates the design philosophies of
     <img src="img/DTADH_2.png" width="500" alt="DTADH">
 </div>
 
-## Experimental flow chart
+#### ESLoss
+To balance positive and negative samples, the EMASlideLoss (ESLoss) function is proposed, which dynamically adjusts sample loss weights by adaptively learning the intersection over union (IoU) threshold of the bounding box. In addition, the normalized Wasserstein distance (NWD) is introduced to reduce IoU regression errors of the multiscale bounding box.
+
+$$
+f\left ( IoU \right )=\left\{\begin{matrix}
+1,IoU\leq \mu -0.1 \\
+e^{1-\mu },\mu -0.1< IoU < \mu \\
+e^{1-IoU},IoU \geq \mu 
+\end{matrix}\right.,\\
+where,\mu =\beta \left ( \mu  \right )\times \mu ^{'}+\left [ 1-\beta \left ( \mu  \right ) \right  ]\times 0.5
+$$
+$$
+\beta(u)=\beta\times\left(1-e^{-\frac{u}{\tau}}\right)
+$$
+$$
+{ES\mathcal{L}}_{cls}(x,y)=f(IoU)\times\mathcal{L}_{cls}(x,y)
+$$
+
+
+
+### Experimental flow chart
 
 <div align="center">
     <img src="img/workflow.png" width="700" alt="workflow">
 </div>
 
 
-## Detection result
+### Detection result
 <div align="center">
     <img src="img/comparison_result.png" width="800" alt="comparison result">
 </div>
@@ -96,7 +116,7 @@ If you use this code or article in your research, please cite it using the follo
 ```
 
 
-#### 子目录下的文件说明
+#### Explanation of the file
 ```bash
 1. train.py ：训练模型的脚本
 2. main_profile.py ：输出模型和模型每一层的参数,计算量的脚本
@@ -115,29 +135,24 @@ If you use this code or article in your research, please cite it using the follo
 13. get_model_erf.py ： 绘制模型的有效感受野.
 ```
 
-#### 注意事项
+#### Attention
 ```shell
-1. 执行pip uninstall ultralytics把安装在环境里面的ultralytics库卸载干净.<这里需要注意,如果你也在使用yolov8,最好使用anaconda创建一个虚拟环境供本代码使用,避免环境冲突导致一些奇怪的问题>
+1. 执行pip uninstall ultralytics把安装在环境里面的ultralytics库卸载干净.<避免环境冲突导致一些奇怪的问题>
 2. 卸载完成后同样再执行一次,如果出现WARNING: Skipping ultralytics as it is not installed.证明已经卸载干净.
-3. 如果需要使用官方的CLI运行方式,需要把ultralytics库安装一下,执行命令:<pip install -e .>,当然安装后对本代码进行修改依然有效.注意:不需要使用官方的CLI运行方式,可以选择跳过这步
-4. 额外需要的包安装命令:
+3. 额外需要的包安装命令:
     numpy==1.23.5 albumentations==1.4.2
     pip install timm==0.9.8 thop efficientnet_pytorch==0.7.1 einops grad-cam==1.4.8 dill==0.3.6 albumentations==1.3.1 pytorch_wavelets==1.3.0 -i https://pypi.tuna.tsinghua.edu.cn/simple
     以下主要是使用dyhead必定需要安装的包,如果安装不成功dyhead没办法正常使用!如果执行了还是不成功,可看最下方mmcv安装问题.
         pip install -U openmim
         mim install mmengine -i https://pypi.tuna.tsinghua.edu.cn/simple
         mim install "mmcv>=2.0.0" -i https://pypi.tuna.tsinghua.edu.cn/simple
-5.需要编译才能运行的一些模块:mamba、dcnv3、dcnv4
-
+4.需要编译才能运行的一些模块:dcnv3、dcnv4
 - 成功编译DCNv3 和 DCNv4：
+    Installed /home/lenovo/anaconda3/envs/ObjectDetection/lib/python3.8/site-packages/DCNv3-1.1-py3.8-linux-x86_64.egg
+    Processing dependencies for DCNv3==1.1
+    Finished processing dependencies for DCNv3==1.1
 
-Installed /home/lenovo/anaconda3/envs/ObjectDetection/lib/python3.8/site-packages/DCNv3-1.1-py3.8-linux-x86_64.egg
-Processing dependencies for DCNv3==1.1
-Finished processing dependencies for DCNv3==1.1
-
-
-Installed /home/lenovo/anaconda3/envs/ObjectDetection/lib/python3.8/site-packages/DCNv4-1.0.0-py3.8-linux-x86_64.egg
-Processing dependencies for DCNv4==1.0.0
-Finished processing dependencies for DCNv4==1.0.0
-
+    Installed /home/lenovo/anaconda3/envs/ObjectDetection/lib/python3.8/site-packages/DCNv4-1.0.0-py3.8-linux-x86_64.egg
+    Processing dependencies for DCNv4==1.0.0
+    Finished processing dependencies for DCNv4==1.0.0
 ```
