@@ -176,10 +176,11 @@ def get_best_region(out, imgs_t):
     return region_t, out, best_side 
 
 def transform_img_bboxes(out, best_side, region_t, transform_):
+
     '''
     out：原始的检测框（bounding boxes），形状为 (N, 7)，其中 N 是目标的数量。
     best_side：选定的最佳区域（'topleft', 'bottomleft', 'bottomright', 'topright'）。
-    region_t：从原始图像裁剪出的最佳区域图像。
+    region_t：从原始图像裁剪出的最佳区域图像。 region_t.shape = torch.Size([4, 3, 320, 320])
     transform_：一个用于数据增强的变换函数。
     '''
     out_ = copy.deepcopy(out) # 作用是创建 out 的深拷贝，确保不会修改原始数据
