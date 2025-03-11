@@ -92,6 +92,7 @@ class BaseModel(nn.Module):
         y, dt, embeddings = [], [], []  # outputs y是指保存self.save的特征图
         # print('self.save 是  ',self.save) #[4, 6, 9, 12, 15, 18, 21]
         out_feas_dict = {}
+        pred = []
 
         for m in self.model:
             if m.f != -1:  # if not from previous layer
@@ -125,11 +126,14 @@ class BaseModel(nn.Module):
             if m.__class__.__name__ in ['Detect']:
                 # Only pass pseudo and delta to the detection head as opposed to the other layers
                 x = m(x, pseudo, delta)
+            
+            if isinstance(m, DomainClassify):
+                x = m(x)  # run
+                pred.append(x)
                 
             else:
                 x = m(x)  # run
                 y.append(x if m.i in self.save else None)  # save output
-        
             
             # else:
             #     x = m(x)  # run    
@@ -1033,6 +1037,12 @@ def parse_model(d, ch, verbose=True, warehouse_manager=None):  # model_dict, inp
             c1 = [ch[x] for x in f]
             c2 = c1[-1]
             args = [c1, c2]
+         ## -----------------------------------------------------------
+        elif m is DomainClassify:
+            c1 = ch[f]
+            c2 = 1
+            args = [c1,c2]
+    ## -----------------------------------------------------------
         else:
             c2 = ch[f]
 

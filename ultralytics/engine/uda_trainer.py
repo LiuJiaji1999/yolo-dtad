@@ -365,6 +365,7 @@ class UDABaseTrainer:
         epoch = self.epochs  # predefine for resume fully trained model edge cases
         
         max_iterations = nb * (epoch - self.start_epoch)
+
         for epoch in range(self.start_epoch, self.epochs):
             self.epoch = epoch
             self.run_callbacks("on_train_epoch_start")
@@ -398,6 +399,7 @@ class UDABaseTrainer:
             
             self.tloss = None
             self.optimizer.zero_grad()
+            
 
             for i, (batch_S,batch_T) in pbar:
 
@@ -450,11 +452,15 @@ class UDABaseTrainer:
                     
                     # ----------------------------------------------------- 
                     # 源域 目标域的特征图 差异，作为第二个损失 最终优化目标为 与源域的检测损失 ，权重相加
-                    '''
+                    
                     # 源域的检测损失
                     self.source_loss, self.source_loss_items = self.model(batch_s)
                     # print('源域实际loss',self.source_loss)
-                    # print('源域实际loss_items',self.source_loss_items)            
+                    # print('源域实际loss_items',self.source_loss_items)     
+
+                    # 域分类器的输出
+                    self.source_feature = self.model(batch_s['img'])  
+                    self.target_feature = self.model(batch_t['img'])      
 
                     # 仅 源域和目标域图像 的前向传播，返回特征图值
                     self.source_feature_dict = self.model(batch_s['img'],layers=True)  
@@ -493,12 +499,24 @@ class UDABaseTrainer:
                         #     print('WARNING  source target features is None!!!')
                         #     mse_loss = 0.0  # 或者根据需求设置为其他默认值
                     
-                    print('最终的mse_loss: ',mean_mse_loss)
+                    # print('最终的mse_loss: ',mean_mse_loss)
+                            
+                    source_domain_label = torch.zeros_like(self.source_feature).to(self.device) # 表示，
+                    target_domain_label = torch.ones_like(self.target_feature).to(self.device) # 表示，
+
+                    loss_source = nn.BCEWithLogitsLoss(self.source_feature,source_domain_label) 
+                    loss_target = nn.BCEWithLogitsLoss(self.target_feature,target_domain_label)
+
+                    loss_dc = loss_source + loss_target
 
                     # 计算最终损失
                     lambda_weight = 0.1  # 超参数，用于平衡源域损失和特征图MSE损失
-                    self.loss = self.source_loss + lambda_weight * mean_mse_loss
-                    self.loss_items = self.source_loss_items + mean_mse_loss.detach() # 可选：是否将MSE损失也加入loss_items
+                    self.loss = self.source_loss + lambda_weight * mean_mse_loss + loss_dc
+                    self.loss_items = torch.cat([
+                                            self.source_loss_items,  # 原有的 cls、bbox、dfl 损失
+                                            mean_mse_loss.detach().unsqueeze(0),   # 加入 mse 损失
+                                            loss_dc.detach().unsqueeze(0)
+                                        ])
 
                     # print('最终实际的loss_items',self.loss_items)
                     # 多GPU训练时的损失调整
@@ -597,12 +615,12 @@ class UDABaseTrainer:
                     # supervised detector loss term on the labelled source samples
                     # 源域的检测损失
                     self.source_loss, self.source_loss_items = self.model(batch_s) # pred_s 
-                    '''
-                    batch_s['img'].shape [4,3,640,640]
-                    batch_s['cls'].shape [109,1]
-                    batch_s['bboxes'].shape [109,4]
-                    batch_s['batch_idx'].shape [109]
-                    '''
+                    
+                    # batch_s['img'].shape [4,3,640,640]
+                    # batch_s['cls'].shape [109,1]
+                    # batch_s['bboxes'].shape [109,4]
+                    # batch_s['batch_idx'].shape [109]
+                   
                     # self-supervised consistency loss term on the mixed samples
                     # 合成域的 二次检测
                     batch_daca = {}
@@ -618,7 +636,12 @@ class UDABaseTrainer:
                     lambda_weight = 1  # 超参数，用于平衡
                     self.loss = self.source_loss + lambda_weight * self.loss_daca
                     self.loss_items = self.source_loss_items + self.loss_items_daca # 可选：是否将MSE损失也加入loss_items
-
+                    self.loss_items = torch.cat([
+                                            self.source_loss_items,  # 原有的 cls、bbox、dfl 损失
+                                            self.loss_items_daca,
+                                            # mean_mse_loss.detach().unsqueeze(0),   # 加入 mse 损失
+                                            # mean_mmd_loss.detach().unsqueeze(0),  # 加入 gram\mmd\swd 损失
+                                        ])
                     # print('最终实际的loss_items',self.loss_items)
                     # 多GPU训练时的损失调整
                     if RANK != -1:
@@ -627,7 +650,8 @@ class UDABaseTrainer:
                     self.tloss = (
                         (self.tloss * i + self.loss_items) / (i + 1) if self.tloss is not None else self.loss_items
                     )
-                
+                '''
+                    
                 # Backward
                 self.scaler.scale(self.loss).backward()
 
@@ -659,7 +683,7 @@ class UDABaseTrainer:
                      # Plot ###############################
                     if self.args.plots and ni in self.plot_idx:
                         self.plot_training_samples(batch_t, ni)
-                        self.plot_uda_samples(batch_daca,ni)
+                        # self.plot_uda_samples(batch_daca,ni)
 
                       
 
