@@ -346,7 +346,6 @@ class UDABaseTrainer:
 
         nb = min(len(self.train_loader),len(self.target_loader))  # number of batches
         # print('获取到的lambda:',self.args.lambda_weight)
-        
         print('最小的批次大小 ',nb)
         nw = max(round(self.args.warmup_epochs * nb), 100) if self.args.warmup_epochs > 0 else -1  # warmup iterations
         last_opt_step = -1
@@ -370,15 +369,22 @@ class UDABaseTrainer:
         import itertools 
         # 定义搜索空间
         gamma_weights = [0.05, 0.1, 0.5, 1.0, 1.5 ]  # gamma_weight 的候选值
-        lambda_weights = [0.05, 0.1, 0.5, 1.0, 1.5]  # lambda_weight 的候选值
         alpha_weights = [0.05, 0.1, 0.5, 1.0, 1.5]  # alpha_weight 的候选值
+        lambda_weights = [0.05, 0.1, 0.5, 1.0, 1.5]  # lambda_weight 的候选值
+        # 要保证 alpha_weights < lambda_weights
         # 生成所有可能的组合
         param_grid = list(itertools.product(gamma_weights, lambda_weights, alpha_weights))
+        # # 生成所有可能的组合，并过滤掉不满足 alpha_weight < lambda_weight 的组合
+        # param_grid = [
+        #     (gamma, lambda_, alpha)
+        #     for gamma, lambda_, alpha in itertools.product(gamma_weights, lambda_weights, alpha_weights)
+        #     if alpha < lambda_  # 确保 alpha_weight < lambda_weight
+        # ]
         best_mAP = 0  # 记录最佳验证集性能
-        best_lambda_weight = self.args.lambda_weight  # 记录最佳 lambda_weight
+        best_params = None  # 记录最佳参数组合
         for params in param_grid:
             gamma_weight, lambda_weight, alpha_weight = params
-
+            
             for epoch in range(self.start_epoch, self.epochs):
                 self.epoch = epoch
                 self.run_callbacks("on_train_epoch_start")
@@ -685,7 +691,7 @@ class UDABaseTrainer:
 
                         # 计算最终损失
                         # lambda_weight = 1  # 超参数，用于平衡
-                        self.loss = self.source_loss + lambda_weight * self.loss_daca + + alpha_weight * mean_mmd_loss + lambda_weight * mean_mse_loss 
+                        self.loss = self.source_loss + gamma_weight * self.loss_daca + + alpha_weight * mean_mmd_loss + lambda_weight * mean_mse_loss 
                         self.loss_items = self.source_loss_items + self.loss_items_daca # 可选：是否将MSE损失也加入loss_items
                         self.loss_items = torch.cat([
                                                 self.source_loss_items,  # 原有的 cls、bbox、dfl 损失
@@ -751,13 +757,10 @@ class UDABaseTrainer:
                         self.metrics, self.fitness = self.validate()
 
                     # 验证集性能
-                    if self.metrics['map50'] > best_mAP :
+                    if self.metrics['mAP50'] > best_mAP :
                         # 动态调整 lambda_weight
-                        best_mAP = self.metrics['map50']
-                        best_lambda_weight = self.args.lambda_weight
-                    else:
-                        # 如果性能下降，调整 lambda_weight
-                        self.args.lambda_weight *= 0.9  # 逐步减小 lambda_weight
+                        best_mAP = self.metrics['mAP50']
+                        best_params = (gamma_weight, lambda_weight, alpha_weight)
                 
                     self.save_metrics(metrics={**self.label_loss_items(self.tloss), **self.metrics, **self.lr})
                     self.stop |= self.stopper(epoch + 1, self.fitness)
@@ -793,7 +796,7 @@ class UDABaseTrainer:
                 if self.stop:
                     break  # must break all DDP ranks
 
-        print(f"Best Lambda Weight: {best_lambda_weight}, Best Val mAP: {best_mAP}")    
+        print(f"Best parameters (gamma, lambda, alpha): {best_params}, Best mAP: {best_mAP}")    
 
 
         if RANK in (-1, 0):
