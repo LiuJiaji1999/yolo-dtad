@@ -127,9 +127,9 @@ class BaseModel(nn.Module):
                 # Only pass pseudo and delta to the detection head as opposed to the other layers
                 x = m(x, pseudo, delta)
             
-            if isinstance(m, DomainClassify):
-                x = m(x)  # run
-                pred.append(x)
+            # if isinstance(m, DomainClassify):
+            #     x = m(x)  # run
+            #     pred.append(x)
                 
             else:
                 x = m(x)  # run

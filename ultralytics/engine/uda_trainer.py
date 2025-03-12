@@ -57,7 +57,7 @@ from ultralytics.utils.plotting import output_to_target, plot_images
 # from ultralytics.models.yolo.detect.uda_train import  UDADetectionTrainer
 import copy
 import albumentations as A
-from ultralytics.utils.daca import get_best_region, transform_img_bboxes
+from ultralytics.utils.daca import get_best_region, transform_img_bboxes,compute_linearmmd_loss
 import torch.nn.functional as F
 from ultralytics.nn.uda_tasks import attempt_load_one_weight, attempt_load_weights
 
@@ -345,6 +345,8 @@ class UDABaseTrainer:
         self._setup_train(world_size)
 
         nb = min(len(self.train_loader),len(self.target_loader))  # number of batches
+        # print('获取到的lambda:',self.args.lambda_weight)
+        
         print('最小的批次大小 ',nb)
         nw = max(round(self.args.warmup_epochs * nb), 100) if self.args.warmup_epochs > 0 else -1  # warmup iterations
         last_opt_step = -1
@@ -365,119 +367,196 @@ class UDABaseTrainer:
         epoch = self.epochs  # predefine for resume fully trained model edge cases
         
         max_iterations = nb * (epoch - self.start_epoch)
+        import itertools 
+        # 定义搜索空间
+        gamma_weights = [0.05, 0.1, 0.5, 1.0, 1.5 ]  # gamma_weight 的候选值
+        lambda_weights = [0.05, 0.1, 0.5, 1.0, 1.5]  # lambda_weight 的候选值
+        alpha_weights = [0.05, 0.1, 0.5, 1.0, 1.5]  # alpha_weight 的候选值
+        # 生成所有可能的组合
+        param_grid = list(itertools.product(gamma_weights, lambda_weights, alpha_weights))
+        best_mAP = 0  # 记录最佳验证集性能
+        best_lambda_weight = self.args.lambda_weight  # 记录最佳 lambda_weight
+        for params in param_grid:
+            gamma_weight, lambda_weight, alpha_weight = params
 
-        for epoch in range(self.start_epoch, self.epochs):
-            self.epoch = epoch
-            self.run_callbacks("on_train_epoch_start")
-            self.model.train()
+            for epoch in range(self.start_epoch, self.epochs):
+                self.epoch = epoch
+                self.run_callbacks("on_train_epoch_start")
+                self.model.train()
 
-            if RANK != -1:
-                self.train_loader.sampler.set_epoch(epoch)
-                # update
-                self.target_loader.sampler.set_epoch(epoch)
+                if RANK != -1:
+                    self.train_loader.sampler.set_epoch(epoch)
+                    # update
+                    self.target_loader.sampler.set_epoch(epoch)
 
-            # pbar = enumerate(self.train_loader)
-            pbar = enumerate(zip(self.train_loader,self.target_loader))
+                # pbar = enumerate(self.train_loader)
+                pbar = enumerate(zip(self.train_loader,self.target_loader))
 
-            # data_iter_S = iter(self.train_loader)
-            # data_iter_T = iter(self.target_loader)
+                # data_iter_S = iter(self.train_loader)
+                # data_iter_T = iter(self.target_loader)
 
-            # s1 = next(data_iter_S)
-            # print('data_iter_S',len(s1))
-            # t1 = next(data_iter_T)
-            # print('data_iter_T',len(t1))
+                # s1 = next(data_iter_S)
+                # print('data_iter_S',len(s1))
+                # t1 = next(data_iter_T)
+                # print('data_iter_T',len(t1))
 
-            # Update dataloader attributes (optional)
-            if epoch == (self.epochs - self.args.close_mosaic):
-                self._close_dataloader_mosaic()
-                self.train_loader.reset()
+                # Update dataloader attributes (optional)
+                if epoch == (self.epochs - self.args.close_mosaic):
+                    self._close_dataloader_mosaic()
+                    self.train_loader.reset()
 
-            if RANK in (-1, 0):
-                LOGGER.info(self.progress_string())
-                # pbar = TQDM(enumerate(self.train_loader), total=nb) 
-                pbar = TQDM(pbar,total=nb)
-            
-            self.tloss = None
-            self.optimizer.zero_grad()
-            
+                if RANK in (-1, 0):
+                    LOGGER.info(self.progress_string())
+                    # pbar = TQDM(enumerate(self.train_loader), total=nb) 
+                    pbar = TQDM(pbar,total=nb)
+                
+                self.tloss = None
+                self.optimizer.zero_grad()
+                
+                for i, (batch_S,batch_T) in pbar:
 
-            for i, (batch_S,batch_T) in pbar:
+                    # batch_S = batch[0]
+                    # batch_S = batch[1]
+                    # imgs_s = batch_S['img']
+                    # # 处理 targets_s
+                    # batch_idx = batch_S['batch_idx']
+                    # bboxes = batch_S['bboxes']
+                    # cls = batch_S['cls']  # (num_targets,) 去掉额外的维度
+                    # # 合并为 (batch_idx, class_id, x, y, w, h)
+                    # targets_s = torch.cat((
+                    #     batch_idx.unsqueeze(1),  # image_id
+                    #     cls,        # class_id
+                    #     bboxes                   # x1, y1, x2, y2
+                    # ), dim=1).to(self.device)  # 转换为 (N, 6)
 
-                # batch_S = batch[0]
-                # batch_S = batch[1]
-                # imgs_s = batch_S['img']
-                # # 处理 targets_s
-                # batch_idx = batch_S['batch_idx']
-                # bboxes = batch_S['bboxes']
-                # cls = batch_S['cls']  # (num_targets,) 去掉额外的维度
-                # # 合并为 (batch_idx, class_id, x, y, w, h)
-                # targets_s = torch.cat((
-                #     batch_idx.unsqueeze(1),  # image_id
-                #     cls,        # class_id
-                #     bboxes                   # x1, y1, x2, y2
-                # ), dim=1).to(self.device)  # 转换为 (N, 6)
+                    # imgs_t = batch_T['img']
+                    self.run_callbacks("on_train_batch_start")
+                    # Warmup
+                    ni = i + nb * epoch
 
-                # imgs_t = batch_T['img']
-                self.run_callbacks("on_train_batch_start")
-                # Warmup
-                ni = i + nb * epoch
+                    # imgs_s = imgs_s.to(self.device, non_blocking=True).float() / 255  # uint8 to float32, 0-255 to 0.0-1.0
+                    # imgs_t = imgs_t.to(self.device, non_blocking=True).float() / 255  # uint8 to float32, 0-255 to 0.0-1.0
 
-                # imgs_s = imgs_s.to(self.device, non_blocking=True).float() / 255  # uint8 to float32, 0-255 to 0.0-1.0
-                # imgs_t = imgs_t.to(self.device, non_blocking=True).float() / 255  # uint8 to float32, 0-255 to 0.0-1.0
+                    if ni <= nw:
+                        xi = [0, nw]  # x interp
+                        self.accumulate = max(1, int(np.interp(ni, xi, [1, self.args.nbs / self.batch_size]).round()))
+                        for j, x in enumerate(self.optimizer.param_groups):
+                            # Bias lr falls from 0.1 to lr0, all other lrs rise from 0.0 to lr0
+                            x["lr"] = np.interp(
+                                ni, xi, [self.args.warmup_bias_lr if j == 0 else 0.0, x["initial_lr"] * self.lf(epoch)]
+                            )
+                            if "momentum" in x:
+                                x["momentum"] = np.interp(ni, xi, [self.args.warmup_momentum, self.args.momentum])
+                    
+                    if hasattr(self.model, 'net_update_temperature'):
+                        temp = get_temperature(i + 1, epoch, len(self.train_loader), temp_epoch=20, temp_init_value=1.0)
+                        self.model.net_update_temperature(temp)
+                    
+                    # Forward 
+                    with torch.cuda.amp.autocast(self.amp):
+                        batch_s = self.preprocess_batch(batch_S)
+                        batch_t = self.preprocess_batch(batch_T)
+                        '''
+                        self.model(batch)
+                            batch是字典就计算loss,不是字典一般是img 就计算forward预测值
+                            uda_task/forward
+                        '''
+                        
+                        # ----------------------------------------------------- 
+                        # 源域 目标域的特征图 差异，作为第二个损失 最终优化目标为 与源域的检测损失 ，权重相加
+                        '''
+                        # 源域的检测损失
+                        self.source_loss, self.source_loss_items = self.model(batch_s)
+                        # print('源域实际loss',self.source_loss)
+                        # print('源域实际loss_items',self.source_loss_items)     
 
-                if ni <= nw:
-                    xi = [0, nw]  # x interp
-                    self.accumulate = max(1, int(np.interp(ni, xi, [1, self.args.nbs / self.batch_size]).round()))
-                    for j, x in enumerate(self.optimizer.param_groups):
-                        # Bias lr falls from 0.1 to lr0, all other lrs rise from 0.0 to lr0
-                        x["lr"] = np.interp(
-                            ni, xi, [self.args.warmup_bias_lr if j == 0 else 0.0, x["initial_lr"] * self.lf(epoch)]
+                        # 域分类器的输出
+                        self.source_feature = self.model(batch_s['img'])  
+                        self.target_feature = self.model(batch_t['img'])      
+
+                        # 仅 源域和目标域图像 的前向传播，返回特征图值
+                        self.source_feature_dict = self.model(batch_s['img'],layers=True)  
+                        self.target_feature_dict = self.model(batch_t['img'],layers=True)
+                        
+                        mse_losses = []
+
+                        # 判断源域和目标域特征是否为空
+                        for layer in [2, 4, 6, 8, 9]:
+                            source_feas = self.source_feature_dict[layer]
+                            target_feas = self.target_feature_dict[layer]
+
+                            # # 检查批次大小
+                            min_batch_size = min(source_feas.size(0), target_feas.size(0))
+                            source_fea = source_feas[:min_batch_size]
+                            target_fea = target_feas[:min_batch_size]
+
+                            if source_fea is not None and target_fea is not None:
+                                # 检查源域和目标域特征的形状是否一致
+                                if source_fea.shape != target_fea.shape: 
+                                    # 调整 target_feature 的尺寸，使其匹配 source_feature
+                                    target_fea = F.interpolate(
+                                        target_fea, 
+                                        size=target_fea.shape[2:],  # 调整为目标特征图的高度和宽度
+                                        mode="bilinear", 
+                                        align_corners=False
+                                    )
+                                # 计算 MSE 损失
+                                    
+                                if layer in [8, 9]:
+                                    mse_loss = F.mse_loss(source_fea, target_fea)
+                                    mse_losses.append(mse_loss)
+                                mean_mse_loss = sum(mse_losses) / 2
+                            # else:
+                            #     # 如果源域或目标域特征为空，跳过计算
+                            #     print('WARNING  source target features is None!!!')
+                            #     mse_loss = 0.0  # 或者根据需求设置为其他默认值
+                        
+                        # print('最终的mse_loss: ',mean_mse_loss)
+                                
+                        source_domain_label = torch.zeros_like(self.source_feature).to(self.device) # 表示，
+                        target_domain_label = torch.ones_like(self.target_feature).to(self.device) # 表示，
+
+                        loss_source = nn.BCEWithLogitsLoss(self.source_feature,source_domain_label) 
+                        loss_target = nn.BCEWithLogitsLoss(self.target_feature,target_domain_label)
+
+                        loss_dc = loss_source + loss_target
+
+                        # 计算最终损失
+                        lambda_weight = 0.1  # 超参数，用于平衡源域损失和特征图MSE损失
+                        self.loss = self.source_loss + lambda_weight * mean_mse_loss + loss_dc
+                        self.loss_items = torch.cat([
+                                                self.source_loss_items,  # 原有的 cls、bbox、dfl 损失
+                                                mean_mse_loss.detach().unsqueeze(0),   # 加入 mse 损失
+                                                loss_dc.detach().unsqueeze(0)
+                                            ])
+
+                        # print('最终实际的loss_items',self.loss_items)
+                        # 多GPU训练时的损失调整
+                        if RANK != -1:
+                            self.loss *= world_size
+                        # 更新平均损失
+                        self.tloss = (
+                            (self.tloss * i + self.loss_items) / (i + 1) if self.tloss is not None else self.loss_items
                         )
-                        if "momentum" in x:
-                            x["momentum"] = np.interp(ni, xi, [self.args.warmup_momentum, self.args.momentum])
-                
-                if hasattr(self.model, 'net_update_temperature'):
-                    temp = get_temperature(i + 1, epoch, len(self.train_loader), temp_epoch=20, temp_init_value=1.0)
-                    self.model.net_update_temperature(temp)
-                
-                # Forward 
-                with torch.cuda.amp.autocast(self.amp):
-                    batch_s = self.preprocess_batch(batch_S)
-                    batch_t = self.preprocess_batch(batch_T)
-                    '''
-                    self.model(batch)
-                        batch是字典就计算loss,不是字典一般是img 就计算forward预测值
-                        uda_task/forward
-                    '''
-                    
-                    # ----------------------------------------------------- 
-                    # 源域 目标域的特征图 差异，作为第二个损失 最终优化目标为 与源域的检测损失 ，权重相加
-                    
-                    # 源域的检测损失
-                    self.source_loss, self.source_loss_items = self.model(batch_s)
-                    # print('源域实际loss',self.source_loss)
-                    # print('源域实际loss_items',self.source_loss_items)     
+                        '''
+                        
+                        # -----------------------------------------------------  
 
-                    # 域分类器的输出
-                    self.source_feature = self.model(batch_s['img'])  
-                    self.target_feature = self.model(batch_t['img'])      
-
-                    # 仅 源域和目标域图像 的前向传播，返回特征图值
+                        # 仅 源域和目标域图像 的前向传播，返回特征图值
                     self.source_feature_dict = self.model(batch_s['img'],layers=True)  
-                    self.target_feature_dict = self.model(batch_t['img'],layers=True)
+                    self.target_feature_dict = self.model(batch_t['img'],layers=True)  
                     
+                    mmd_losses = []
                     mse_losses = []
-
-                    # 判断源域和目标域特征是否为空
                     for layer in [2, 4, 6, 8, 9]:
                         source_feas = self.source_feature_dict[layer]
                         target_feas = self.target_feature_dict[layer]
-
+                        # mix_target_feas = self.mixed_target_feature_dict[layer]
                         # # 检查批次大小
                         min_batch_size = min(source_feas.size(0), target_feas.size(0))
                         source_fea = source_feas[:min_batch_size]
                         target_fea = target_feas[:min_batch_size]
-
+                        # mix_target_fea = mix_target_feas[:min_batch_size]
                         if source_fea is not None and target_fea is not None:
                             # 检查源域和目标域特征的形状是否一致
                             if source_fea.shape != target_fea.shape: 
@@ -488,249 +567,234 @@ class UDABaseTrainer:
                                     mode="bilinear", 
                                     align_corners=False
                                 )
-                            # 计算 MSE 损失
-                                
-                            if layer in [8, 9]:
+                             # 3.计算源域和目标域的 特定层特征的  MMD ，缩小域间差异
+                            if layer in [2, 4, 6]: 
+                                # mmd_linear 在50epoch还行，100epoch就变很小值了！
+                                mmd_loss = torch.tensor(compute_linearmmd_loss(source_fea,target_fea))
+                                mmd_losses.append(mmd_loss)
+                            mean_mmd_loss = sum(mmd_losses) / 3  
+
+                            if layer in [8, 9]: # [2,4,6,8,9]
                                 mse_loss = F.mse_loss(source_fea, target_fea)
                                 mse_losses.append(mse_loss)
                             mean_mse_loss = sum(mse_losses) / 2
-                        # else:
-                        #     # 如果源域或目标域特征为空，跳过计算
-                        #     print('WARNING  source target features is None!!!')
-                        #     mse_loss = 0.0  # 或者根据需求设置为其他默认值
+               
+
+                        r = ni / max_iterations
+                        delta = 2 / (1 + math.exp(-5. * r)) - 1
+                        # pred_s = self.model(batch_s['img'], pseudo=True, delta=delta)  # forward          
+                        # pseudo_s, pred_s = pred_s # 源域 的 检测结果，特征图
                     
-                    # print('最终的mse_loss: ',mean_mse_loss)
+                        pred_t = self.model(batch_t['img'], pseudo=True, delta=delta)  # forward
+                        pseudo_t, _ = pred_t # 目标域的 伪标签 和 特征图 pseudo_t.shape(4,5,8400)
+
+                        # filter pseudo detections on target images applying NMS
+                        out = non_max_suppression(pseudo_t.detach(), conf_thres=0.1, iou_thres=0.5, multi_label=False)
+                        out = output_to_target(out)  # [batch_id, class_id, x, y, w, h, conf] (16,7)
+                        out_original = copy.deepcopy(out)    
+
+                        # DACA
+                        # 创建一个与源图像 imgs_s 形状相同的全 1 张量，并将其乘以 imgs_s 的均值。
+                        # 目的是生成一个与 imgs_s 大小相同的空白图像，用于后续拼接增强后的图像。
+                        imgs_concat = torch.ones_like(batch_s['img']) * torch.mean(batch_s['img']) #  初始化合成图像，进行再次训练
+                        if out.shape[0] > 0: #（16，4） 如果 out 的行数大于 0，说明有目标框需要处理。
+                            # get best region from target 从目标域中选 最好的区域
+                            region_t1_original, out1_original, best_side = get_best_region(out, batch_t['img']) # torch.Size([4, 3, 320, 320]),(16,7),''topleft''  
+
+                            transform = A.Compose([
+                                                A.BBoxSafeRandomCrop(erosion_rate=0.1, always_apply=False, p=0.2),
+                                                A.HorizontalFlip(p=0.5),
+                                                A.Blur(blur_limit=1, always_apply=True, p=0.5), 
+                                                A.ColorJitter (brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2, always_apply=False, p=0.5),
+                                                A.Downscale (scale_min=0.5, scale_max=0.99, interpolation=None, always_apply=False, p=0.5),
+                                                A.RandomBrightnessContrast (brightness_limit=0.1, contrast_limit=0.1, brightness_by_max=True, always_apply=False, p=0.5),
+                                                ], 
+                                                bbox_params=A.BboxParams(format='yolo', label_fields=['category_ids']),)              
                             
-                    source_domain_label = torch.zeros_like(self.source_feature).to(self.device) # 表示，
-                    target_domain_label = torch.ones_like(self.target_feature).to(self.device) # 表示，
+                            # 对最佳区域进行增强
+                            region_t1, out1 = transform_img_bboxes(out1_original, best_side, region_t1_original, transform)
+                            region_t2, out2 = transform_img_bboxes(out1_original, best_side, region_t1_original, transform)
+                            region_t3, out3 = transform_img_bboxes(out1_original, best_side, region_t1_original, transform)
+                            region_t4, out4 = transform_img_bboxes(out1_original, best_side, region_t1_original, transform)
 
-                    loss_source = nn.BCEWithLogitsLoss(self.source_feature,source_domain_label) 
-                    loss_target = nn.BCEWithLogitsLoss(self.target_feature,target_domain_label)
+                            # fill up the concat image
+                            # 将增强后的 4 个区域 region_t1 到 region_t4 拼接到 imgs_concat 的不同位置，形成一张新的拼接图像。
+                            imgs_concat[:, :, 0:int(region_t1.shape[1]), 0:int(region_t1.shape[2])] = torch.from_numpy(region_t1).unsqueeze(0)
+                            imgs_concat[:, :, int(batch_s['img'].shape[3]/2):int(batch_s['img'].shape[3]/2) + int(region_t2.shape[1]), 0:int(region_t2.shape[2])] = torch.from_numpy(region_t2).unsqueeze(0)
+                            imgs_concat[:, :, int(batch_s['img'].shape[3]/2):int(batch_s['img'].shape[3]/2) + int(region_t3.shape[1]),  int(batch_s['img'].shape[3]/2):int(batch_s['img'].shape[3]/2) + int(region_t3.shape[2])] = torch.from_numpy(region_t3).unsqueeze(0)
+                            imgs_concat[:, :, 0:int(region_t4.shape[1]), int(batch_s['img'].shape[3]/2):int(batch_s['img'].shape[3]/2) + int(region_t4.shape[2])] = torch.from_numpy(region_t4).unsqueeze(0)
+    
+                            # Adjust region-level bboxes of the image-level coordinates
+                            # 调整目标框坐标
+                            # convert to bottomleft
+                            out2[:, 3] += batch_t['img'].shape[3]/2
+                            # convert to bottomright
+                            out3[:, 2] += batch_t['img'].shape[2]/2
+                            out3[:, 3] += batch_t['img'].shape[3]/2
+                            # convert to topright
+                            out4[:, 2] += batch_t['img'].shape[2]/2
+                            
+                            # 将目标框转换为张量
+                            if not torch.is_tensor(out1):
+                                out1 = torch.from_numpy(out1)
+                            if not torch.is_tensor(out2):
+                                out2 = torch.from_numpy(out2)
+                            if not torch.is_tensor(out3):
+                                out3 = torch.from_numpy(out3)                                                        
+                            if not torch.is_tensor(out4):
+                                out4 = torch.from_numpy(out4)       
+                            out = torch.cat((out1, out2, out3, out4), dim=0) # shape (32,7)
+                        else:
+                            out = torch.empty([0,7]) 
 
-                    loss_dc = loss_source + loss_target
-
-                    # 计算最终损失
-                    lambda_weight = 0.1  # 超参数，用于平衡源域损失和特征图MSE损失
-                    self.loss = self.source_loss + lambda_weight * mean_mse_loss + loss_dc
-                    self.loss_items = torch.cat([
-                                            self.source_loss_items,  # 原有的 cls、bbox、dfl 损失
-                                            mean_mse_loss.detach().unsqueeze(0),   # 加入 mse 损失
-                                            loss_dc.detach().unsqueeze(0)
-                                        ])
-
-                    # print('最终实际的loss_items',self.loss_items)
-                    # 多GPU训练时的损失调整
-                    if RANK != -1:
-                        self.loss *= world_size
-                    # 更新平均损失
-                    self.tloss = (
-                        (self.tloss * i + self.loss_items) / (i + 1) if self.tloss is not None else self.loss_items
-                    )
-                    '''
-                    
-                    # -----------------------------------------------------  
-                    r = ni / max_iterations
-                    delta = 2 / (1 + math.exp(-5. * r)) - 1
-                    # pred_s = self.model(batch_s['img'], pseudo=True, delta=delta)  # forward          
-                    # pseudo_s, pred_s = pred_s # 源域 的 检测结果，特征图
-                
-                    pred_t = self.model(batch_t['img'], pseudo=True, delta=delta)  # forward
-                    pseudo_t, _ = pred_t # 目标域的 伪标签 和 特征图 pseudo_t.shape(4,5,8400)
-
-                    # filter pseudo detections on target images applying NMS
-                    out = non_max_suppression(pseudo_t.detach(), conf_thres=0.1, iou_thres=0.5, multi_label=False)
-                    out = output_to_target(out)  # [batch_id, class_id, x, y, w, h, conf] (16,7)
-                    out_original = copy.deepcopy(out)    
-
-                    # DACA
-                    # 创建一个与源图像 imgs_s 形状相同的全 1 张量，并将其乘以 imgs_s 的均值。
-                    # 目的是生成一个与 imgs_s 大小相同的空白图像，用于后续拼接增强后的图像。
-                    imgs_concat = torch.ones_like(batch_s['img']) * torch.mean(batch_s['img']) #  初始化合成图像，进行再次训练
-                    if out.shape[0] > 0: #（16，4） 如果 out 的行数大于 0，说明有目标框需要处理。
-                        # get best region from target 从目标域中选 最好的区域
-                        region_t1_original, out1_original, best_side = get_best_region(out, batch_t['img']) # torch.Size([4, 3, 320, 320]),(16,7),''topleft''  
-
-                        transform = A.Compose([
-                                            A.BBoxSafeRandomCrop(erosion_rate=0.1, always_apply=False, p=0.2),
-                                            A.HorizontalFlip(p=0.5),
-                                            A.Blur(blur_limit=1, always_apply=True, p=0.5), 
-                                            A.ColorJitter (brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2, always_apply=False, p=0.5),
-                                            A.Downscale (scale_min=0.5, scale_max=0.99, interpolation=None, always_apply=False, p=0.5),
-                                            A.RandomBrightnessContrast (brightness_limit=0.1, contrast_limit=0.1, brightness_by_max=True, always_apply=False, p=0.5),
-                                            ], 
-                                            bbox_params=A.BboxParams(format='yolo', label_fields=['category_ids']),)              
+                        imgs_daca = imgs_concat # 合成域的图像
+                        # out_s = torch.from_numpy(out_s) if out_s.size else torch.empty([0,7])
+                        b, c, h, w = imgs_daca.shape # [4,3,640,640]
                         
-                        # 对最佳区域进行增强
-                        region_t1, out1 = transform_img_bboxes(out1_original, best_side, region_t1_original, transform)
-                        region_t2, out2 = transform_img_bboxes(out1_original, best_side, region_t1_original, transform)
-                        region_t3, out3 = transform_img_bboxes(out1_original, best_side, region_t1_original, transform)
-                        region_t4, out4 = transform_img_bboxes(out1_original, best_side, region_t1_original, transform)
+                        # create daca targets 
+                        # targets_daca_s = out_s
+                        targets_daca_t = out # (32,7) 合成域的 GT
+                        targets_daca =  targets_daca_t # (32,7)
+                        pred_daca = self.model(imgs_daca, pseudo=True)  # forward
+                        _ , pred_daca  = pred_daca # 检测结果 和 特征图
 
-                        # fill up the concat image
-                        # 将增强后的 4 个区域 region_t1 到 region_t4 拼接到 imgs_concat 的不同位置，形成一张新的拼接图像。
-                        imgs_concat[:, :, 0:int(region_t1.shape[1]), 0:int(region_t1.shape[2])] = torch.from_numpy(region_t1).unsqueeze(0)
-                        imgs_concat[:, :, int(batch_s['img'].shape[3]/2):int(batch_s['img'].shape[3]/2) + int(region_t2.shape[1]), 0:int(region_t2.shape[2])] = torch.from_numpy(region_t2).unsqueeze(0)
-                        imgs_concat[:, :, int(batch_s['img'].shape[3]/2):int(batch_s['img'].shape[3]/2) + int(region_t3.shape[1]),  int(batch_s['img'].shape[3]/2):int(batch_s['img'].shape[3]/2) + int(region_t3.shape[2])] = torch.from_numpy(region_t3).unsqueeze(0)
-                        imgs_concat[:, :, 0:int(region_t4.shape[1]), int(batch_s['img'].shape[3]/2):int(batch_s['img'].shape[3]/2) + int(region_t4.shape[2])] = torch.from_numpy(region_t4).unsqueeze(0)
-   
-                        # Adjust region-level bboxes of the image-level coordinates
-                        # 调整目标框坐标
-                        # convert to bottomleft
-                        out2[:, 3] += batch_t['img'].shape[3]/2
-                        # convert to bottomright
-                        out3[:, 2] += batch_t['img'].shape[2]/2
-                        out3[:, 3] += batch_t['img'].shape[3]/2
-                        # convert to topright
-                        out4[:, 2] += batch_t['img'].shape[2]/2
+                        targets_daca = targets_daca[:,:6] # remove confidence values [32,6]
+                        # normalize
+                        targets_daca[:, [2, 4]] /= w
+                        targets_daca[:, [3, 5]] /= h
                         
-                        # 将目标框转换为张量
-                        if not torch.is_tensor(out1):
-                            out1 = torch.from_numpy(out1)
-                        if not torch.is_tensor(out2):
-                            out2 = torch.from_numpy(out2)
-                        if not torch.is_tensor(out3):
-                            out3 = torch.from_numpy(out3)                                                        
-                        if not torch.is_tensor(out4):
-                            out4 = torch.from_numpy(out4)       
-                        out = torch.cat((out1, out2, out3, out4), dim=0) # shape (32,7)
-                    else:
-                        out = torch.empty([0,7]) 
-
-                    imgs_daca = imgs_concat # 合成域的图像
-                    # out_s = torch.from_numpy(out_s) if out_s.size else torch.empty([0,7])
-                    b, c, h, w = imgs_daca.shape # [4,3,640,640]
+                        # supervised detector loss term on the labelled source samples
+                        # 源域的检测损失
+                        self.source_loss, self.source_loss_items = self.model(batch_s) # pred_s 
+                        
+                        # batch_s['img'].shape [4,3,640,640]
+                        # batch_s['cls'].shape [109,1]
+                        # batch_s['bboxes'].shape [109,4]
+                        # batch_s['batch_idx'].shape [109]
                     
-                    # create daca targets 
-                    # targets_daca_s = out_s
-                    targets_daca_t = out # (32,7) 合成域的 GT
-                    targets_daca =  targets_daca_t # (32,7)
-                    pred_daca = self.model(imgs_daca, pseudo=True)  # forward
-                    _ , pred_daca  = pred_daca # 检测结果 和 特征图
+                        # self-supervised consistency loss term on the mixed samples
+                        # 合成域的 二次检测
+                        batch_daca = {}
+                        batch_daca['ori_shape'] = batch_s['ori_shape']
+                        batch_daca['resized_shape'] = [[640,640],[640,640],[640,640],[640,640]]
+                        batch_daca['img'] = imgs_daca #[4,3,640,640]
+                        batch_daca['cls'] = targets_daca[:,1].unsqueeze(-1) # [32] -> [32,1]
+                        batch_daca['bboxes'] = targets_daca[:,2:] # [32,4]
+                        batch_daca['batch_idx'] = targets_daca[:,0] # [32]
+                        self.loss_daca, self.loss_items_daca = self.model(batch_daca)
 
-                    targets_daca = targets_daca[:,:6] # remove confidence values [32,6]
-                    # normalize
-                    targets_daca[:, [2, 4]] /= w
-                    targets_daca[:, [3, 5]] /= h
+                        # 计算最终损失
+                        # lambda_weight = 1  # 超参数，用于平衡
+                        self.loss = self.source_loss + lambda_weight * self.loss_daca + + alpha_weight * mean_mmd_loss + lambda_weight * mean_mse_loss 
+                        self.loss_items = self.source_loss_items + self.loss_items_daca # 可选：是否将MSE损失也加入loss_items
+                        self.loss_items = torch.cat([
+                                                self.source_loss_items,  # 原有的 cls、bbox、dfl 损失
+                                                self.loss_items_daca,
+                                                mean_mse_loss.detach().unsqueeze(0),   # 加入 mse 损失
+                                                mean_mmd_loss.detach().unsqueeze(0),  # 加入 gram\mmd\swd 损失
+                                            ])
+                        # print('最终实际的loss_items',self.loss_items)
+                        # 多GPU训练时的损失调整
+                        if RANK != -1:
+                            self.loss *= world_size
+                        # 更新平均损失
+                        self.tloss = (
+                            (self.tloss * i + self.loss_items) / (i + 1) if self.tloss is not None else self.loss_items
+                        )
                     
-                    # supervised detector loss term on the labelled source samples
-                    # 源域的检测损失
-                    self.source_loss, self.source_loss_items = self.model(batch_s) # pred_s 
-                    
-                    # batch_s['img'].shape [4,3,640,640]
-                    # batch_s['cls'].shape [109,1]
-                    # batch_s['bboxes'].shape [109,4]
-                    # batch_s['batch_idx'].shape [109]
-                   
-                    # self-supervised consistency loss term on the mixed samples
-                    # 合成域的 二次检测
-                    batch_daca = {}
-                    batch_daca['ori_shape'] = batch_s['ori_shape']
-                    batch_daca['resized_shape'] = [[640,640],[640,640],[640,640],[640,640]]
-                    batch_daca['img'] = imgs_daca #[4,3,640,640]
-                    batch_daca['cls'] = targets_daca[:,1].unsqueeze(-1) # [32] -> [32,1]
-                    batch_daca['bboxes'] = targets_daca[:,2:] # [32,4]
-                    batch_daca['batch_idx'] = targets_daca[:,0] # [32]
-                    self.loss_daca, self.loss_items_daca = self.model(batch_daca)
+                        
+                    # Backward
+                    self.scaler.scale(self.loss).backward()
 
-                    # 计算最终损失
-                    lambda_weight = 1  # 超参数，用于平衡
-                    self.loss = self.source_loss + lambda_weight * self.loss_daca
-                    self.loss_items = self.source_loss_items + self.loss_items_daca # 可选：是否将MSE损失也加入loss_items
-                    self.loss_items = torch.cat([
-                                            self.source_loss_items,  # 原有的 cls、bbox、dfl 损失
-                                            self.loss_items_daca,
-                                            # mean_mse_loss.detach().unsqueeze(0),   # 加入 mse 损失
-                                            # mean_mmd_loss.detach().unsqueeze(0),  # 加入 gram\mmd\swd 损失
-                                        ])
-                    # print('最终实际的loss_items',self.loss_items)
-                    # 多GPU训练时的损失调整
-                    if RANK != -1:
-                        self.loss *= world_size
-                    # 更新平均损失
-                    self.tloss = (
-                        (self.tloss * i + self.loss_items) / (i + 1) if self.tloss is not None else self.loss_items
-                    )
-                '''
-                    
-                # Backward
-                self.scaler.scale(self.loss).backward()
+                    # Optimize - https://pytorch.org/docs/master/notes/amp_examples.html
+                    if ni - last_opt_step >= self.accumulate:
+                        self.optimizer_step()
+                        last_opt_step = ni
 
-                # Optimize - https://pytorch.org/docs/master/notes/amp_examples.html
-                if ni - last_opt_step >= self.accumulate:
-                    self.optimizer_step()
-                    last_opt_step = ni
+                        # Timed stopping
+                        if self.args.time:
+                            self.stop = (time.time() - self.train_time_start) > (self.args.time * 3600)
+                            if RANK != -1:  # if DDP training
+                                broadcast_list = [self.stop if RANK == 0 else None]
+                                dist.broadcast_object_list(broadcast_list, 0)  # broadcast 'stop' to all ranks
+                                self.stop = broadcast_list[0]
+                            if self.stop:  # training time exceeded
+                                break
 
-                    # Timed stopping
-                    if self.args.time:
-                        self.stop = (time.time() - self.train_time_start) > (self.args.time * 3600)
-                        if RANK != -1:  # if DDP training
-                            broadcast_list = [self.stop if RANK == 0 else None]
-                            dist.broadcast_object_list(broadcast_list, 0)  # broadcast 'stop' to all ranks
-                            self.stop = broadcast_list[0]
-                        if self.stop:  # training time exceeded
-                            break
+                    # Log
+                    mem = f"{torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0:.3g}G"  # (GB)
+                    loss_len = self.tloss.shape[0] if len(self.tloss.shape) else 1
+                    losses = self.tloss if loss_len > 1 else torch.unsqueeze(self.tloss, 0)
+                    if RANK in (-1, 0):
+                        pbar.set_description(
+                            ("%11s" * 2 + "%11.4g" * (2 + loss_len))
+                            % (f"{epoch + 1}/{self.epochs}", mem, *losses, batch_s["cls"].shape[0], batch_s["img"].shape[-1])
+                        )
+                        self.run_callbacks("on_batch_end")
+                        # Plot ###############################
+                        if self.args.plots and ni in self.plot_idx:
+                            self.plot_training_samples(batch_t, ni)
+                            # self.plot_uda_samples(batch_daca,ni)
 
-                # Log
-                mem = f"{torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0:.3g}G"  # (GB)
-                loss_len = self.tloss.shape[0] if len(self.tloss.shape) else 1
-                losses = self.tloss if loss_len > 1 else torch.unsqueeze(self.tloss, 0)
+                        
+
+                    self.run_callbacks("on_train_batch_end")
+
+                self.lr = {f"lr/pg{ir}": x["lr"] for ir, x in enumerate(self.optimizer.param_groups)}  # for loggers
+                self.run_callbacks("on_train_epoch_end")
                 if RANK in (-1, 0):
-                    pbar.set_description(
-                        ("%11s" * 2 + "%11.4g" * (2 + loss_len))
-                        % (f"{epoch + 1}/{self.epochs}", mem, *losses, batch_s["cls"].shape[0], batch_s["img"].shape[-1])
-                    )
-                    self.run_callbacks("on_batch_end")
-                     # Plot ###############################
-                    if self.args.plots and ni in self.plot_idx:
-                        self.plot_training_samples(batch_t, ni)
-                        # self.plot_uda_samples(batch_daca,ni)
+                    final_epoch = epoch + 1 == self.epochs
+                    self.ema.update_attr(self.model, include=["yaml", "nc", "args", "names", "stride", "class_weights"])
 
-                      
+                    # Validation
+                    if self.args.val or final_epoch or self.stopper.possible_stop or self.stop:
+                        self.metrics, self.fitness = self.validate()
 
-                self.run_callbacks("on_train_batch_end")
+                    # 验证集性能
+                    if self.metrics['map50'] > best_mAP :
+                        # 动态调整 lambda_weight
+                        best_mAP = self.metrics['map50']
+                        best_lambda_weight = self.args.lambda_weight
+                    else:
+                        # 如果性能下降，调整 lambda_weight
+                        self.args.lambda_weight *= 0.9  # 逐步减小 lambda_weight
+                
+                    self.save_metrics(metrics={**self.label_loss_items(self.tloss), **self.metrics, **self.lr})
+                    self.stop |= self.stopper(epoch + 1, self.fitness)
+                    if self.args.time:
+                        self.stop |= (time.time() - self.train_time_start) > (self.args.time * 3600)
 
-            self.lr = {f"lr/pg{ir}": x["lr"] for ir, x in enumerate(self.optimizer.param_groups)}  # for loggers
-            self.run_callbacks("on_train_epoch_end")
-            if RANK in (-1, 0):
-                final_epoch = epoch + 1 == self.epochs
-                self.ema.update_attr(self.model, include=["yaml", "nc", "args", "names", "stride", "class_weights"])
+                    # Save model
+                    if self.args.save or final_epoch:
+                        self.save_model()
+                        self.run_callbacks("on_model_save")
 
-                # Validation
-                if self.args.val or final_epoch or self.stopper.possible_stop or self.stop:
-                    self.metrics, self.fitness = self.validate()
-                self.save_metrics(metrics={**self.label_loss_items(self.tloss), **self.metrics, **self.lr})
-                self.stop |= self.stopper(epoch + 1, self.fitness)
-                if self.args.time:
-                    self.stop |= (time.time() - self.train_time_start) > (self.args.time * 3600)
+                # Scheduler
+                t = time.time()
+                self.epoch_time = t - self.epoch_time_start
+                self.epoch_time_start = t
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")  # suppress 'Detected lr_scheduler.step() before optimizer.step()'
+                    if self.args.time:
+                        mean_epoch_time = (t - self.train_time_start) / (epoch - self.start_epoch + 1)
+                        self.epochs = self.args.epochs = math.ceil(self.args.time * 3600 / mean_epoch_time)
+                        self._setup_scheduler()
+                        self.scheduler.last_epoch = self.epoch  # do not move
+                        self.stop |= epoch >= self.epochs  # stop if exceeded epochs
+                    self.scheduler.step()
+                self.run_callbacks("on_fit_epoch_end")
+                torch.cuda.empty_cache()  # clear GPU memory at end of epoch, may help reduce CUDA out of memory errors
 
-                # Save model
-                if self.args.save or final_epoch:
-                    self.save_model()
-                    self.run_callbacks("on_model_save")
+                # Early Stopping
+                if RANK != -1:  # if DDP training
+                    broadcast_list = [self.stop if RANK == 0 else None]
+                    dist.broadcast_object_list(broadcast_list, 0)  # broadcast 'stop' to all ranks
+                    self.stop = broadcast_list[0]
+                if self.stop:
+                    break  # must break all DDP ranks
 
-            # Scheduler
-            t = time.time()
-            self.epoch_time = t - self.epoch_time_start
-            self.epoch_time_start = t
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")  # suppress 'Detected lr_scheduler.step() before optimizer.step()'
-                if self.args.time:
-                    mean_epoch_time = (t - self.train_time_start) / (epoch - self.start_epoch + 1)
-                    self.epochs = self.args.epochs = math.ceil(self.args.time * 3600 / mean_epoch_time)
-                    self._setup_scheduler()
-                    self.scheduler.last_epoch = self.epoch  # do not move
-                    self.stop |= epoch >= self.epochs  # stop if exceeded epochs
-                self.scheduler.step()
-            self.run_callbacks("on_fit_epoch_end")
-            torch.cuda.empty_cache()  # clear GPU memory at end of epoch, may help reduce CUDA out of memory errors
+        print(f"Best Lambda Weight: {best_lambda_weight}, Best Val mAP: {best_mAP}")    
 
-            # Early Stopping
-            if RANK != -1:  # if DDP training
-                broadcast_list = [self.stop if RANK == 0 else None]
-                dist.broadcast_object_list(broadcast_list, 0)  # broadcast 'stop' to all ranks
-                self.stop = broadcast_list[0]
-            if self.stop:
-                break  # must break all DDP ranks
 
         if RANK in (-1, 0):
             # Do final val with best.pt
