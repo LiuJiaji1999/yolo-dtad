@@ -3,14 +3,16 @@ warnings.filterwarnings('ignore')
 from ultralytics import YOLO
 
 if __name__ == '__main__':
-    model = YOLO('/home/lenovo/data/liujiaji/powerGit/yolov8/runs/8.1.9/exp81/weights/best.pt') # select your model.pt path
+    model = YOLO('/home/lenovo/data/liujiaji/powerGit/yolov8/runs/8.1.9/exp112/weights/best.pt') # select your model.pt path
     model.model.names = {0: 'pin-uninstall', 1: 'pin-rust', 2: 'pin-defect',
                          3: 'insulator-burn', 4: 'insulator-defect', 5: 'insulator-dirty'}  # 修改类别名称
     # print("模型修改后的类别名称:", model.model.names)
-    model.predict(source='/home/lenovo/data/liujiaji/powerGit/yolov8/testImg',
+    model.predict(
+                  source='/home/lenovo/data/liujiaji/Datasets-Power/privatepower/pin/rust/img',
+                  # source='/home/lenovo/data/liujiaji/powerGit/yolov8/testImg',
                   imgsz=640,
                   project='runs/detect',
-                  name='exp81',
+                  name='exp112-rust',
                   save=True,
                   # save_txt=True,
                   # iou=0.45 # 默认
