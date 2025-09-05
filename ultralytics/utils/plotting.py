@@ -32,14 +32,23 @@ class Colors:
 
     def __init__(self):
         """Initialize colors as hex = matplotlib.colors.TABLEAU_COLORS.values()."""
-        hexs = (
-            "FF3838",
-            "FF9D97",
-            "FF701F",
-            "FFB21D",
-            "CFD231",
-            "48F90A",
-            "92CC17",
+        hexs = ( 
+            # 前7个颜色 同v11一致
+            "042AFF",
+            "0BDBEB",
+            "F3F3F3",
+            "00DFB7",
+            "111F68",
+            "FF6FDD",
+            "FF444F",
+            "CCED00",
+            # "FF3838",
+            # "FF9D97",
+            # "FF701F",
+            # "FFB21D",
+            # "CFD231",
+            # "48F90A",
+            # "92CC17",
             "3DDB86",
             "1A9334",
             "00D4BB",
