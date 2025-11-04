@@ -8,7 +8,7 @@ from ultralytics.utils.metrics import OKS_SIGMA
 from ultralytics.utils.ops import crop_mask, xywh2xyxy, xyxy2xywh
 from ultralytics.utils.tal import RotatedTaskAlignedAssigner, TaskAlignedAssigner, dist2bbox, dist2rbox, make_anchors
 from ultralytics.utils.atss import ATSSAssigner, generate_anchors
-from .metrics import bbox_iou, probiou, bbox_mpdiou, bbox_inner_iou, bbox_focaler_iou, bbox_inner_mpdiou, bbox_focaler_mpdiou, wasserstein_loss, WiseIouLoss
+from .metrics import bbox_iou, probiou, wasserstein_loss, WiseIouLoss
 from .tal import bbox2dist
 
 import math
@@ -75,117 +75,6 @@ class EMASlideLoss:
         else:  # 'none'
             return loss
 
-class VarifocalLoss(nn.Module):
-    """
-    Varifocal loss by Zhang et al.
-
-    https://arxiv.org/abs/2008.13367.
-    """
-
-    def __init__(self):
-        """Initialize the VarifocalLoss class."""
-        super().__init__()
-
-    @staticmethod
-    def forward(pred_score, gt_score, label, alpha=0.75, gamma=2.0):
-        """Computes varfocal loss."""
-        weight = alpha * pred_score.sigmoid().pow(gamma) * (1 - label) + gt_score * label
-        with torch.cuda.amp.autocast(enabled=False):
-            loss = (
-                (F.binary_cross_entropy_with_logits(pred_score.float(), gt_score.float(), reduction="none") * weight)
-                .mean(1)
-                .sum()
-            )
-        return loss
-
-
-class FocalLoss(nn.Module):
-    """Wraps focal loss around existing loss_fcn(), i.e. criteria = FocalLoss(nn.BCEWithLogitsLoss(), gamma=1.5)."""
-
-    def __init__(self):
-        """Initializer for FocalLoss class with no parameters."""
-        super().__init__()
-
-    @staticmethod
-    def forward(pred, label, gamma=1.5, alpha=0.25):
-        """Calculates and updates confusion matrix for object detection/classification tasks."""
-        loss = F.binary_cross_entropy_with_logits(pred, label, reduction="none")
-        # p_t = torch.exp(-loss)
-        # loss *= self.alpha * (1.000001 - p_t) ** self.gamma  # non-zero power for gradient stability
-
-        # TF implementation https://github.com/tensorflow/addons/blob/v0.7.1/tensorflow_addons/losses/focal_loss.py
-        pred_prob = pred.sigmoid()  # prob from logits
-        p_t = label * pred_prob + (1 - label) * (1 - pred_prob)
-        modulating_factor = (1.0 - p_t) ** gamma
-        loss *= modulating_factor
-        if alpha > 0:
-            alpha_factor = label * alpha + (1 - label) * (1 - alpha)
-            loss *= alpha_factor
-        return loss.mean(1).sum()
-
-class VarifocalLoss_YOLO(nn.Module):
-    """
-    Varifocal loss by Zhang et al.
-
-    https://arxiv.org/abs/2008.13367.
-    """
-
-    def __init__(self, alpha=0.75, gamma=2.0):
-        """Initialize the VarifocalLoss class."""
-        super().__init__()
-        self.alpha = alpha
-        self.gamma = gamma
-
-    def forward(self, pred_score, gt_score):
-        """Computes varfocal loss."""
-        
-        weight = self.alpha * (pred_score.sigmoid() - gt_score).abs().pow(self.gamma) * (gt_score <= 0.0).float() + gt_score * (gt_score > 0.0).float()
-        with torch.cuda.amp.autocast(enabled=False):
-            return F.binary_cross_entropy_with_logits(pred_score.float(), gt_score.float(), reduction='none') * weight
-
-class QualityfocalLoss_YOLO(nn.Module):
-    def __init__(self, beta=2.0):
-        super().__init__()
-        self.beta = beta
-    
-    def forward(self, pred_score, gt_score, gt_target_pos_mask):
-        # negatives are supervised by 0 quality score
-        pred_sigmoid = pred_score.sigmoid()
-        scale_factor = pred_sigmoid
-        zerolabel = scale_factor.new_zeros(pred_score.shape)
-        with torch.cuda.amp.autocast(enabled=False):
-            loss = F.binary_cross_entropy_with_logits(pred_score, zerolabel, reduction='none') * scale_factor.pow(self.beta)
-        
-        scale_factor = gt_score[gt_target_pos_mask] - pred_sigmoid[gt_target_pos_mask]
-        with torch.cuda.amp.autocast(enabled=False):
-            loss[gt_target_pos_mask] = F.binary_cross_entropy_with_logits(pred_score[gt_target_pos_mask], gt_score[gt_target_pos_mask], reduction='none') * scale_factor.abs().pow(self.beta)
-        return loss
-
-class FocalLoss_YOLO(nn.Module):
-    """Wraps focal loss around existing loss_fcn(), i.e. criteria = FocalLoss(nn.BCEWithLogitsLoss(), gamma=1.5)."""
-
-    def __init__(self, gamma=1.5, alpha=0.25):
-        """Initializer for FocalLoss class with no parameters."""
-        super().__init__()
-        self.gamma = gamma
-        self.alpha = alpha
-
-    def forward(self, pred, label):
-        """Calculates and updates confusion matrix for object detection/classification tasks."""
-        loss = F.binary_cross_entropy_with_logits(pred, label, reduction='none')
-        # p_t = torch.exp(-loss)
-        # loss *= self.alpha * (1.000001 - p_t) ** self.gamma  # non-zero power for gradient stability
-
-        # TF implementation https://github.com/tensorflow/addons/blob/v0.7.1/tensorflow_addons/losses/focal_loss.py
-        pred_prob = pred.sigmoid()  # prob from logits
-        p_t = label * pred_prob + (1 - label) * (1 - pred_prob)
-        modulating_factor = (1.0 - p_t) ** self.gamma
-        loss *= modulating_factor
-        if self.alpha > 0:
-            alpha_factor = label * self.alpha + (1 - label) * (1 - self.alpha)
-            loss *= alpha_factor
-        return loss
-
 class BboxLoss(nn.Module):
 
     def __init__(self, reg_max, use_dfl=False):
@@ -208,16 +97,9 @@ class BboxLoss(nn.Module):
         
         if self.use_wiseiou:
             wiou = self.wiou_loss(pred_bboxes[fg_mask], target_bboxes[fg_mask], ret_iou=False, ratio=0.7, d=0.0, u=0.95).unsqueeze(-1)
-            # wiou = self.wiou_loss(pred_bboxes[fg_mask], target_bboxes[fg_mask], ret_iou=False, ratio=0.7, d=0.0, u=0.95, **{'scale':0.0}).unsqueeze(-1) # Wise-ShapeIoU,Wise-Inner-ShapeIoU,Wise-Focaler-ShapeIoU
-            # wiou = self.wiou_loss(pred_bboxes[fg_mask], target_bboxes[fg_mask], ret_iou=False, ratio=0.7, d=0.0, u=0.95, **{'mpdiou_hw':mpdiou_hw[fg_mask]}).unsqueeze(-1) # Wise-MPDIoU,Wise-Inner-MPDIoU,Wise-Focaler-MPDIoU
             loss_iou = (wiou * weight).sum() / target_scores_sum
         else:
             iou = bbox_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, CIoU=True)
-            # iou = bbox_inner_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, CIoU=True, ratio=0.7)
-            # iou = bbox_mpdiou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, mpdiou_hw=mpdiou_hw[fg_mask])
-            # iou = bbox_inner_mpdiou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, mpdiou_hw=mpdiou_hw[fg_mask], ratio=0.7)
-            # iou = bbox_focaler_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, CIoU=True, d=0.0, u=0.95)
-            # iou = bbox_focaler_mpdiou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, mpdiou_hw=mpdiou_hw[fg_mask], d=0.0, u=0.95)
             loss_iou = ((1.0 - iou) * weight).sum() / target_scores_sum
                 
         if self.nwd_loss:
@@ -306,9 +188,6 @@ class v8DetectionLoss:
         # self.bce = nn.BCEWithLogitsLoss(reduction="none")
         self.bce = EMASlideLoss(nn.BCEWithLogitsLoss(reduction='none'))  # Exponential Moving Average Slide Loss
         # self.bce = SlideLoss(nn.BCEWithLogitsLoss(reduction='none')) # Slide Loss
-        # self.bce = FocalLoss_YOLO(alpha=0.25, gamma=1.5) # FocalLoss
-        # self.bce = VarifocalLoss_YOLO(alpha=0.75, gamma=2.0) # VarifocalLoss
-        # self.bce = QualityfocalLoss_YOLO(beta=2.0) # QualityfocalLoss
         self.hyp = h
         self.stride = m.stride  # model strides
         self.nc = m.nc  # number of classes
@@ -402,9 +281,9 @@ class v8DetectionLoss:
         target_scores_sum = max(target_scores.sum(), 1)
 
         # cls loss
-        if isinstance(self.bce, (nn.BCEWithLogitsLoss, FocalLoss_YOLO)):
+        if isinstance(self.bce, (nn.BCEWithLogitsLoss)):
             loss[1] = self.bce(pred_scores, target_scores.to(dtype)).sum() / target_scores_sum  # BCE
-        elif isinstance(self.bce, VarifocalLoss_YOLO):
+        elif isinstance(self.bce):
             if fg_mask.sum():
                 pos_ious = bbox_iou(pred_bboxes, target_bboxes / stride_tensor, xywh=False).clamp(min=1e-6).detach()
                 # 10.0x Faster than torch.one_hot
@@ -420,7 +299,7 @@ class v8DetectionLoss:
                                         dtype=torch.int64,
                                         device=target_labels.device)  # (b, h*w, 80)
             loss[1] = self.bce(pred_scores, cls_iou_targets.to(dtype)).sum() / max(fg_mask.sum(), 1)  # BCE
-        elif isinstance(self.bce, QualityfocalLoss_YOLO):
+        elif isinstance(self.bce):
             if fg_mask.sum():
                 pos_ious = bbox_iou(pred_bboxes, target_bboxes / stride_tensor, xywh=False).clamp(min=1e-6).detach()
                 # 10.0x Faster than torch.one_hot

@@ -2,8 +2,7 @@
 
 from ultralytics.engine.model import Model
 from ultralytics.models import yolo
-# from ultralytics.nn.tasks import ClassificationModel, DetectionModel, OBBModel, PoseModel, SegmentationModel
-from ultralytics.nn.uda_tasks import ClassificationModel, DetectionModel, OBBModel, PoseModel, SegmentationModel
+from ultralytics.nn.tasks import ClassificationModel, DetectionModel, OBBModel, PoseModel, SegmentationModel
 
 
 class YOLO(Model):
@@ -21,8 +20,8 @@ class YOLO(Model):
             },
             "detect": {
                 "model": DetectionModel,
-                # "trainer": yolo.detect.DetectionTrainer,
-                "trainer": yolo.detect.UDADetectionTrainer,
+                "trainer": yolo.detect.DetectionTrainer,
+                # "trainer": yolo.detect.UDADetectionTrainer,
                 "validator": yolo.detect.DetectionValidator,
                 "predictor": yolo.detect.DetectionPredictor,
             },

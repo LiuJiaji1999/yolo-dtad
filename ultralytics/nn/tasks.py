@@ -269,9 +269,7 @@ class BaseModel(nn.Module):
         """
         self = super()._apply(fn)
         m = self.model[-1]  # Detect()
-        if isinstance(m, (Detect, Detect_DyHead, Detect_AFPN_P2345, Detect_AFPN_P2345_Custom, Detect_AFPN_P345, Detect_AFPN_P345_Custom, 
-                          Detect_Efficient, DetectAux, Detect_SEAM, Detect_MultiSEAM, Detect_DyHeadWithDCNV3, Detect_DyHeadWithDCNV4, Detect_DyHead_Prune,
-                          Detect_LSCD, Detect_DTADH, Segment, Segment_Efficient, Segment_LSCD, Segment_DTADH)):
+        if isinstance(m, (Detect, Detect_DyHead, Detect_DTADH, Segment)):
             m.stride = fn(m.stride)
             m.anchors = fn(m.anchors)
             m.strides = fn(m.strides)
@@ -341,15 +339,13 @@ class DetectionModel(BaseModel):
 
         # Build strides
         m = self.model[-1]  # Detect()
-        if isinstance(m, (Detect, Detect_DyHead, Detect_AFPN_P2345, Detect_AFPN_P2345_Custom, Detect_AFPN_P345, Detect_AFPN_P345_Custom, 
-                          Detect_Efficient, DetectAux, Detect_DyHeadWithDCNV3, Detect_DyHeadWithDCNV4, Detect_SEAM, Detect_MultiSEAM, Detect_DyHead_Prune, 
-                          Detect_LSCD, Detect_DTADH, Segment, Segment_Efficient, Segment_LSCD, Segment_DTADH, Pose, Pose_LSCD, Pose_DTADH, OBB, OBB_LSCD, OBB_DTADH)):
+        if isinstance(m, (Detect, Detect_DyHead, Detect_DTADH, Segment, Segment_Efficient, Pose, OBB,)):
             s = 640  # 2x min stride
             m.inplace = self.inplace
             if isinstance(m, (DetectAux,)):
                 forward = lambda x: self.forward(x)[:3]
             else:
-                forward = lambda x: self.forward(x)[0] if isinstance(m, (Segment, Segment_Efficient, Segment_LSCD, Segment_DTADH, Pose, Pose_LSCD, Pose_DTADH, OBB, OBB_LSCD, OBB_DTADH)) else self.forward(x)
+                forward = lambda x: self.forward(x)[0] if isinstance(m, (Segment, Segment_Efficient, OBB)) else self.forward(x)
             try:
                 m.stride = torch.tensor([s / x.shape[-2] for x in forward(torch.zeros(2, ch, s, s))])  # forward
             except RuntimeError as e:
@@ -762,10 +758,7 @@ def attempt_load_weights(weights, device=None, inplace=True, fuse=False):
     # Module updates
     for m in ensemble.modules():
         t = type(m)
-        if t in (nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU, Detect, Detect_DyHead, Detect_AFPN_P2345, Detect_AFPN_P2345_Custom, Detect_AFPN_P345, 
-                 Detect_AFPN_P345_Custom, Detect_Efficient, DetectAux, Detect_DyHeadWithDCNV3, Detect_DyHeadWithDCNV4, Detect_SEAM, Detect_MultiSEAM, 
-                 Detect_DyHead_Prune, Detect_LSCD, Detect_DTADH, Segment, Segment_Efficient, Segment_LSCD, Segment_DTADH, Pose, Pose_LSCD, Pose_DTADH, 
-                 OBB, OBB_LSCD, OBB_DTADH):
+        if t in (nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU, Detect, Detect_DTADH, Segment,OBB):
             m.inplace = inplace
         elif t is nn.Upsample and not hasattr(m, "recompute_scale_factor"):
             m.recompute_scale_factor = None  # torch 1.11.0 compatibility
@@ -801,10 +794,7 @@ def attempt_load_one_weight(weight, device=None, inplace=True, fuse=False):
     # Module updates
     for m in model.modules():
         t = type(m)
-        if t in (nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU, Detect, Detect_DyHead, 
-                 Detect_AFPN_P2345, Detect_AFPN_P2345_Custom, Detect_AFPN_P345, 
-                 Detect_AFPN_P345_Custom, Detect_Efficient, DetectAux, Detect_DyHeadWithDCNV3, Detect_DyHeadWithDCNV4, 
-                 Detect_SEAM, Detect_MultiSEAM, Detect_DyHead_Prune, Detect_LSCD, Detect_DTADH, Segment):
+        if t in (nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU, Detect, Detect_DyHead, Detect_DTADH, Segment,OBB):
             m.inplace = inplace
         elif t is nn.Upsample and not hasattr(m, "recompute_scale_factor"):
             m.recompute_scale_factor = None  # torch 1.11.0 compatibility
@@ -859,23 +849,7 @@ def parse_model(d, ch, verbose=True, warehouse_manager=None):  # model_dict, inp
 
         n = n_ = max(round(n * depth), 1) if n > 1 else n  # depth gain
         if m in (Classify, Conv, ConvTranspose, GhostConv, Bottleneck, GhostBottleneck, SPP, SPPF, DWConv, Focus,
-                 BottleneckCSP, C1, C2, C2f, C3, C3TR, C3Ghost, nn.Conv2d, nn.ConvTranspose2d, DWConvTranspose2d, C3x, RepC3, C2f_Faster, C2f_ODConv,
-                 C2f_Faster_EMA, C2f_DBB, GSConv, GSConvns, VoVGSCSP, VoVGSCSPns, VoVGSCSPC, C2f_CloAtt, C3_CloAtt, SCConv, C2f_SCConv, C3_SCConv, C2f_ScConv, C3_ScConv,
-                 C3_EMSC, C3_EMSCP, C2f_EMSC, C2f_EMSCP, RCSOSA, KWConv, C2f_KW, C3_KW, DySnakeConv, C2f_DySnakeConv, C3_DySnakeConv,
-                 DCNv2, C3_DCNv2, C2f_DCNv2, DCNV3_YOLO, C3_DCNv3, C2f_DCNv3, C3_Faster, C3_Faster_EMA, C3_ODConv,
-                 OREPA, OREPA_LargeConv, RepVGGBlock_OREPA, C3_OREPA, C2f_OREPA, C3_DBB, C3_REPVGGOREPA, C2f_REPVGGOREPA,
-                 C3_DCNv2_Dynamic, C2f_DCNv2_Dynamic, C3_ContextGuided, C2f_ContextGuided, C3_MSBlock, C2f_MSBlock,
-                 C3_DLKA, C2f_DLKA, CSPStage, SPDConv, RepBlock, C3_EMBC, C2f_EMBC, SPPF_LSKA, C3_DAttention, C2f_DAttention,
-                 C3_Parc, C2f_Parc, C3_DWR, C2f_DWR, RFAConv, RFCAConv, RFCBAMConv, C3_RFAConv, C2f_RFAConv,
-                 C3_RFCBAMConv, C2f_RFCBAMConv, C3_RFCAConv, C2f_RFCAConv, C3_FocusedLinearAttention, C2f_FocusedLinearAttention,
-                 C3_AKConv, C2f_AKConv, AKConv, C3_MLCA, C2f_MLCA,
-                 C3_UniRepLKNetBlock, C2f_UniRepLKNetBlock, C3_DRB, C2f_DRB, C3_DWR_DRB, C2f_DWR_DRB, CSP_EDLAN,
-                 C3_AggregatedAtt, C2f_AggregatedAtt, DCNV4_YOLO, C3_DCNv4, C2f_DCNv4, HWD, SEAM,
-                 C3_SWC, C2f_SWC, C3_iRMB, C2f_iRMB, C3_iRMB_Cascaded, C2f_iRMB_Cascaded, C3_iRMB_DRB, C2f_iRMB_DRB, C3_iRMB_SWC, C2f_iRMB_SWC,
-                 C3_VSS, C2f_VSS, C3_LVMB, C2f_LVMB, RepNCSPELAN4, DBBNCSPELAN4, OREPANCSPELAN4, DRBNCSPELAN4, ADown, V7DownSampling,
-                 C3_DynamicConv, C2f_DynamicConv, C3_GhostDynamicConv, C2f_GhostDynamicConv, C3_RVB, C2f_RVB, C3_RVB_SE, C2f_RVB_SE, C3_RVB_EMA, C2f_RVB_EMA, DGCST,
-                 C3_RetBlock, C2f_RetBlock,RGCSPELAN,C2f_EIEM,C2f_Heat,CSP_PTB,
-                 DomainClassify):
+                 BottleneckCSP, C1, C2, C2f, C3, C3TR, C3Ghost):
             if args[0] == 'head_channel':
                 args[0] = d[args[0]]
             c1, c2 = ch[f], args[0]
@@ -883,28 +857,8 @@ def parse_model(d, ch, verbose=True, warehouse_manager=None):  # model_dict, inp
                 c2 = make_divisible(min(c2, max_channels) * width, 8)
 
             args = [c1, c2, *args[1:]]
-            if m in (KWConv, C2f_KW, C3_KW):
-                args.insert(2, f'layer{i}')
-                args.insert(2, warehouse_manager)
-            if m in (DySnakeConv,):
-                c2 = c2 * 3
-            if m in (RepNCSPELAN4, DBBNCSPELAN4, OREPANCSPELAN4, DRBNCSPELAN4):
-                args[2] = make_divisible(min(args[2], max_channels) * width, 8)
-                args[3] = make_divisible(min(args[3], max_channels) * width, 8)
-            
-            if m in (BottleneckCSP, C1, C2, C2f, C3, C3TR, C3Ghost, C3x, RepC3, C2f_Faster, C2f_ODConv, C2f_Faster_EMA, C2f_DBB,
-                     VoVGSCSP, VoVGSCSPns, VoVGSCSPC, C2f_CloAtt, C3_CloAtt, C2f_SCConv, C3_SCConv, C2f_ScConv, C3_ScConv,
-                     C3_EMSC, C3_EMSCP, C2f_EMSC, C2f_EMSCP, RCSOSA, C2f_KW, C3_KW, C2f_DySnakeConv, C3_DySnakeConv,
-                     C3_DCNv2, C2f_DCNv2, C3_DCNv3, C2f_DCNv3, C3_Faster, C3_Faster_EMA, C3_ODConv, C3_OREPA, C2f_OREPA, C3_DBB,
-                     C3_REPVGGOREPA, C2f_REPVGGOREPA, C3_DCNv2_Dynamic, C2f_DCNv2_Dynamic, C3_ContextGuided, C2f_ContextGuided, 
-                     C3_MSBlock, C2f_MSBlock, C3_DLKA, C2f_DLKA, CSPStage, RepBlock, C3_EMBC, C2f_EMBC, C3_DAttention, C2f_DAttention,
-                     C3_Parc, C2f_Parc, C3_DWR, C2f_DWR, C3_RFAConv, C2f_RFAConv, C3_RFCBAMConv, C2f_RFCBAMConv, C3_RFCAConv, C2f_RFCAConv,
-                     C3_FocusedLinearAttention, C2f_FocusedLinearAttention, C3_AKConv, C2f_AKConv, C3_MLCA, C2f_MLCA,
-                     C3_UniRepLKNetBlock, C2f_UniRepLKNetBlock, C3_DRB, C2f_DRB, C3_DWR_DRB, C2f_DWR_DRB, CSP_EDLAN,
-                     C3_AggregatedAtt, C2f_AggregatedAtt, C3_DCNv4, C2f_DCNv4, C3_SWC, C2f_SWC,
-                     C3_iRMB, C2f_iRMB, C3_iRMB_Cascaded, C2f_iRMB_Cascaded, C3_iRMB_DRB, C2f_iRMB_DRB, C3_iRMB_SWC, C2f_iRMB_SWC,
-                     C3_VSS, C2f_VSS, C3_LVMB, C2f_LVMB, C3_DynamicConv, C2f_DynamicConv, C3_GhostDynamicConv, C2f_GhostDynamicConv,
-                     C3_RVB, C2f_RVB, C3_RVB_SE, C2f_RVB_SE, C3_RVB_EMA, C2f_RVB_EMA, C3_RetBlock, C2f_RetBlock,RGCSPELAN,C2f_EIEM,C2f_Heat,CSP_PTB):
+    
+            if m in (BottleneckCSP, C1, C2, C2f, C3, C3TR):
                 args.insert(2, n)  # number of repeats
                 n = 1
         elif m is AIFI:
@@ -924,19 +878,9 @@ def parse_model(d, ch, verbose=True, warehouse_manager=None):  # model_dict, inp
             args = [ch[f]]
         elif m is Concat:
             c2 = sum(ch[x] for x in f)
-        elif m in (Detect, Detect_DyHead, Detect_AFPN_P2345, Detect_AFPN_P2345_Custom, Detect_AFPN_P345, Detect_AFPN_P345_Custom, 
-                   Detect_Efficient, DetectAux, Detect_DyHeadWithDCNV3, Detect_DyHeadWithDCNV4, Detect_SEAM, Detect_MultiSEAM, 
-                   Detect_DyHead_Prune, Detect_LSCD, Detect_DTADH, Segment, Segment_Efficient, Segment_LSCD, Segment_DTADH, 
-                   Pose, Pose_LSCD, Pose_DTADH, OBB, OBB_LSCD, OBB_DTADH):
+        elif m in (Detect,  Detect_DTADH, Segment, Segment_Efficient,
+                   Pose, OBB, OBB_LSCD, ):
             args.append([ch[x] for x in f])
-            if m in (Segment, Segment_Efficient, Segment_LSCD, Segment_DTADH):
-                args[2] = make_divisible(min(args[2], max_channels) * width, 8)
-                if m in (Segment_LSCD, Segment_DTADH):
-                    args[3] = make_divisible(min(args[3], max_channels) * width, 8)
-            if m in (Detect_LSCD, Detect_DTADH):
-                args[1] = make_divisible(min(args[1], max_channels) * width, 8)
-            if m in (Pose_LSCD, Pose_DTADH, OBB_LSCD, OBB_DTADH):
-                args[2] = make_divisible(min(args[2], max_channels) * width, 8)
         elif m is RTDETRDecoder:  # special case, channels arg must be passed in index 1
             args.insert(1, [ch[x] for x in f])
         elif m is Fusion:
@@ -956,33 +900,14 @@ def parse_model(d, ch, verbose=True, warehouse_manager=None):  # model_dict, inp
             elif len(args) == 1:
                 m = timm.create_model(m, pretrained=args[0], features_only=True)
             c2 = m.feature_info.channels()
-        elif m in {convnextv2_atto, convnextv2_femto, convnextv2_pico, convnextv2_nano, convnextv2_tiny, convnextv2_base, convnextv2_large, convnextv2_huge,
-                   fasternet_t0, fasternet_t1, fasternet_t2, fasternet_s, fasternet_m, fasternet_l,
-                   EfficientViT_M0, EfficientViT_M1, EfficientViT_M2, EfficientViT_M3, EfficientViT_M4, EfficientViT_M5,
-                   efficientformerv2_s0, efficientformerv2_s1, efficientformerv2_s2, efficientformerv2_l,
-                   vanillanet_5, vanillanet_6, vanillanet_7, vanillanet_8, vanillanet_9, vanillanet_10, vanillanet_11, vanillanet_12, vanillanet_13, vanillanet_13_x1_5, vanillanet_13_x1_5_ada_pool,
-                   RevCol,
-                   lsknet_t, lsknet_s,
-                   SwinTransformer_Tiny,
-                   repvit_m0_9, repvit_m1_0, repvit_m1_1, repvit_m1_5, repvit_m2_3,
-                   CSWin_tiny, CSWin_small, CSWin_base, CSWin_large,
-                   unireplknet_a, unireplknet_f, unireplknet_p, unireplknet_n, unireplknet_t, unireplknet_s, unireplknet_b, unireplknet_l, unireplknet_xl,
-                   transnext_micro, transnext_tiny, transnext_small, transnext_base,
-                   RMT_T, RMT_S, RMT_B, RMT_L,
-                   starnet_s050, starnet_s100, starnet_s150, starnet_s1, starnet_s2, starnet_s3, starnet_s4
-
-                   }:
+        elif m in {RevCol}:
             if m is RevCol:
                 args[1] = [make_divisible(min(k, max_channels) * width, 8) for k in args[1]]
                 args[2] = [max(round(k * depth), 1) for k in args[2]]
             m = m(*args)
             c2 = m.channel
         elif m in {EMA, SpatialAttention, BiLevelRoutingAttention, BiLevelRoutingAttention_nchw,
-                   TripletAttention, CoordAtt, CBAMBlock, BAMBlock, LSKBlock, ScConv, LAWDS, EMSConv, EMSConvP,
-                   SEAttention, CPCA, Partial_conv3, FocalModulation, EfficientAttention, MPCA, deformable_LKA,
-                   EffectiveSEModule, LSKA, SegNext_Attention, DAttention, MLCA, TransNeXt_AggregatedAttention,
-                   FocusedLinearAttention, LocalWindowAttention, ChannelAttention_HSFPN, ELA_HSFPN, CA_HSFPN, DySample, CARAFE,
-                   MHSA}:
+                   TripletAttention, CoordAtt, CBAMBlock, MHSA}:
             c2 = ch[f]
             args = [c2, *args]
             # print(args)
@@ -995,7 +920,6 @@ def parse_model(d, ch, verbose=True, warehouse_manager=None):  # model_dict, inp
             c1 = [ch[x] for x in f]
             c2 = make_divisible(min(args[0], max_channels) * width, 8)
             args = [c1, c2]
-        # --------------ASF--------------
         elif m is SDI:
             args = [[ch[x] for x in f]]
         elif m is Multiply:
@@ -1119,18 +1043,15 @@ def guess_model_task(model):
                 return cfg2task(eval(x))
 
         for m in model.modules():
-            if isinstance(m, Detect, Detect_DyHead, Detect_AFPN_P2345, Detect_AFPN_P2345_Custom, 
-                              Detect_AFPN_P345, Detect_AFPN_P345_Custom, Detect_Efficient, DetectAux,
-                              Detect_DyHeadWithDCNV3, Detect_DyHeadWithDCNV4, Detect_SEAM, Detect_MultiSEAM, 
-                              Detect_DyHead_Prune, Detect_LSCD, Detect_DTADH):
+            if isinstance(m, Detect, Detect_DyHead, Detect_DTADH):
                 return "detect"
-            elif isinstance(m, (Segment, Segment_Efficient, Segment_LSCD, Segment_DTADH)):
+            elif isinstance(m, (Segment)):
                 return "segment"
             elif isinstance(m, Classify):
                 return "classify"
-            elif isinstance(m, (Pose, Pose_LSCD, Pose_DTADH)):
+            elif isinstance(m, (Pose)):
                 return "pose"
-            elif isinstance(m, (OBB, OBB_LSCD, OBB_DTADH)):
+            elif isinstance(m, (OBB)):
                 return "obb"
 
     # Guess from model filename
