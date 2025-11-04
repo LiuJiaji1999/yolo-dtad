@@ -271,7 +271,7 @@ class BaseModel(nn.Module):
         m = self.model[-1]  # Detect()
         if isinstance(m, (Detect, Detect_DyHead, Detect_AFPN_P2345, Detect_AFPN_P2345_Custom, Detect_AFPN_P345, Detect_AFPN_P345_Custom, 
                           Detect_Efficient, DetectAux, Detect_SEAM, Detect_MultiSEAM, Detect_DyHeadWithDCNV3, Detect_DyHeadWithDCNV4, Detect_DyHead_Prune,
-                          Detect_LSCD, Detect_TADDH, Segment, Segment_Efficient, Segment_LSCD, Segment_TADDH)):
+                          Detect_LSCD, Detect_DTADH, Segment, Segment_Efficient, Segment_LSCD, Segment_DTADH)):
             m.stride = fn(m.stride)
             m.anchors = fn(m.anchors)
             m.strides = fn(m.strides)
@@ -343,13 +343,13 @@ class DetectionModel(BaseModel):
         m = self.model[-1]  # Detect()
         if isinstance(m, (Detect, Detect_DyHead, Detect_AFPN_P2345, Detect_AFPN_P2345_Custom, Detect_AFPN_P345, Detect_AFPN_P345_Custom, 
                           Detect_Efficient, DetectAux, Detect_DyHeadWithDCNV3, Detect_DyHeadWithDCNV4, Detect_SEAM, Detect_MultiSEAM, Detect_DyHead_Prune, 
-                          Detect_LSCD, Detect_TADDH, Segment, Segment_Efficient, Segment_LSCD, Segment_TADDH, Pose, Pose_LSCD, Pose_TADDH, OBB, OBB_LSCD, OBB_TADDH)):
+                          Detect_LSCD, Detect_DTADH, Segment, Segment_Efficient, Segment_LSCD, Segment_DTADH, Pose, Pose_LSCD, Pose_DTADH, OBB, OBB_LSCD, OBB_DTADH)):
             s = 640  # 2x min stride
             m.inplace = self.inplace
             if isinstance(m, (DetectAux,)):
                 forward = lambda x: self.forward(x)[:3]
             else:
-                forward = lambda x: self.forward(x)[0] if isinstance(m, (Segment, Segment_Efficient, Segment_LSCD, Segment_TADDH, Pose, Pose_LSCD, Pose_TADDH, OBB, OBB_LSCD, OBB_TADDH)) else self.forward(x)
+                forward = lambda x: self.forward(x)[0] if isinstance(m, (Segment, Segment_Efficient, Segment_LSCD, Segment_DTADH, Pose, Pose_LSCD, Pose_DTADH, OBB, OBB_LSCD, OBB_DTADH)) else self.forward(x)
             try:
                 m.stride = torch.tensor([s / x.shape[-2] for x in forward(torch.zeros(2, ch, s, s))])  # forward
             except RuntimeError as e:
@@ -764,8 +764,8 @@ def attempt_load_weights(weights, device=None, inplace=True, fuse=False):
         t = type(m)
         if t in (nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU, Detect, Detect_DyHead, Detect_AFPN_P2345, Detect_AFPN_P2345_Custom, Detect_AFPN_P345, 
                  Detect_AFPN_P345_Custom, Detect_Efficient, DetectAux, Detect_DyHeadWithDCNV3, Detect_DyHeadWithDCNV4, Detect_SEAM, Detect_MultiSEAM, 
-                 Detect_DyHead_Prune, Detect_LSCD, Detect_TADDH, Segment, Segment_Efficient, Segment_LSCD, Segment_TADDH, Pose, Pose_LSCD, Pose_TADDH, 
-                 OBB, OBB_LSCD, OBB_TADDH):
+                 Detect_DyHead_Prune, Detect_LSCD, Detect_DTADH, Segment, Segment_Efficient, Segment_LSCD, Segment_DTADH, Pose, Pose_LSCD, Pose_DTADH, 
+                 OBB, OBB_LSCD, OBB_DTADH):
             m.inplace = inplace
         elif t is nn.Upsample and not hasattr(m, "recompute_scale_factor"):
             m.recompute_scale_factor = None  # torch 1.11.0 compatibility
@@ -804,8 +804,7 @@ def attempt_load_one_weight(weight, device=None, inplace=True, fuse=False):
         if t in (nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU, Detect, Detect_DyHead, 
                  Detect_AFPN_P2345, Detect_AFPN_P2345_Custom, Detect_AFPN_P345, 
                  Detect_AFPN_P345_Custom, Detect_Efficient, DetectAux, Detect_DyHeadWithDCNV3, Detect_DyHeadWithDCNV4, 
-                 Detect_SEAM, Detect_MultiSEAM, Detect_DyHead_Prune, Detect_LSCD, Detect_TADDH, Segment, Segment_Efficient, Segment_LSCD, Segment_TADDH,
-                 Pose, Pose_LSCD, Pose_TADDH, OBB, OBB_LSCD, OBB_TADDH):
+                 Detect_SEAM, Detect_MultiSEAM, Detect_DyHead_Prune, Detect_LSCD, Detect_DTADH, Segment):
             m.inplace = inplace
         elif t is nn.Upsample and not hasattr(m, "recompute_scale_factor"):
             m.recompute_scale_factor = None  # torch 1.11.0 compatibility
@@ -927,16 +926,16 @@ def parse_model(d, ch, verbose=True, warehouse_manager=None):  # model_dict, inp
             c2 = sum(ch[x] for x in f)
         elif m in (Detect, Detect_DyHead, Detect_AFPN_P2345, Detect_AFPN_P2345_Custom, Detect_AFPN_P345, Detect_AFPN_P345_Custom, 
                    Detect_Efficient, DetectAux, Detect_DyHeadWithDCNV3, Detect_DyHeadWithDCNV4, Detect_SEAM, Detect_MultiSEAM, 
-                   Detect_DyHead_Prune, Detect_LSCD, Detect_TADDH, Segment, Segment_Efficient, Segment_LSCD, Segment_TADDH, 
-                   Pose, Pose_LSCD, Pose_TADDH, OBB, OBB_LSCD, OBB_TADDH):
+                   Detect_DyHead_Prune, Detect_LSCD, Detect_DTADH, Segment, Segment_Efficient, Segment_LSCD, Segment_DTADH, 
+                   Pose, Pose_LSCD, Pose_DTADH, OBB, OBB_LSCD, OBB_DTADH):
             args.append([ch[x] for x in f])
-            if m in (Segment, Segment_Efficient, Segment_LSCD, Segment_TADDH):
+            if m in (Segment, Segment_Efficient, Segment_LSCD, Segment_DTADH):
                 args[2] = make_divisible(min(args[2], max_channels) * width, 8)
-                if m in (Segment_LSCD, Segment_TADDH):
+                if m in (Segment_LSCD, Segment_DTADH):
                     args[3] = make_divisible(min(args[3], max_channels) * width, 8)
-            if m in (Detect_LSCD, Detect_TADDH):
+            if m in (Detect_LSCD, Detect_DTADH):
                 args[1] = make_divisible(min(args[1], max_channels) * width, 8)
-            if m in (Pose_LSCD, Pose_TADDH, OBB_LSCD, OBB_TADDH):
+            if m in (Pose_LSCD, Pose_DTADH, OBB_LSCD, OBB_DTADH):
                 args[2] = make_divisible(min(args[2], max_channels) * width, 8)
         elif m is RTDETRDecoder:  # special case, channels arg must be passed in index 1
             args.insert(1, [ch[x] for x in f])
@@ -996,39 +995,6 @@ def parse_model(d, ch, verbose=True, warehouse_manager=None):  # model_dict, inp
             c1 = [ch[x] for x in f]
             c2 = make_divisible(min(args[0], max_channels) * width, 8)
             args = [c1, c2]
-        # --------------GOLD-YOLO--------------
-        elif m in {SimFusion_4in, AdvPoolFusion}:
-            c2 = sum(ch[x] for x in f)
-        elif m is SimFusion_3in:
-            c2 = args[0]
-            if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-            args = [[ch[f_] for f_ in f], c2]
-        elif m is IFM:
-            c1 = ch[f]
-            c2 = sum(args[0])
-            args = [c1, *args]
-        elif m is InjectionMultiSum_Auto_pool:
-            c1 = ch[f[0]]
-            c2 = args[0]
-            args = [c1, *args]
-        elif m is PyramidPoolAgg:
-            c2 = args[0]
-            args = [sum([ch[f_] for f_ in f]), *args]
-        elif m is TopBasicLayer:
-            c2 = sum(args[1])
-        # --------------GOLD-YOLO--------------
-        # --------------ASF--------------
-        elif m is Zoom_cat:
-            c2 = sum(ch[x] for x in f)
-        elif m is Add:
-            c2 = ch[f[-1]]
-        elif m in {ScalSeq, DynamicScalSeq}:
-            c1 = [ch[x] for x in f]
-            c2 = make_divisible(args[0] * width, 8)
-            args = [c1, c2]
-        elif m is asf_attention_model:
-            args = [ch[f[-1]]]
         # --------------ASF--------------
         elif m is SDI:
             args = [[ch[x] for x in f]]
@@ -1156,15 +1122,15 @@ def guess_model_task(model):
             if isinstance(m, Detect, Detect_DyHead, Detect_AFPN_P2345, Detect_AFPN_P2345_Custom, 
                               Detect_AFPN_P345, Detect_AFPN_P345_Custom, Detect_Efficient, DetectAux,
                               Detect_DyHeadWithDCNV3, Detect_DyHeadWithDCNV4, Detect_SEAM, Detect_MultiSEAM, 
-                              Detect_DyHead_Prune, Detect_LSCD, Detect_TADDH):
+                              Detect_DyHead_Prune, Detect_LSCD, Detect_DTADH):
                 return "detect"
-            elif isinstance(m, (Segment, Segment_Efficient, Segment_LSCD, Segment_TADDH)):
+            elif isinstance(m, (Segment, Segment_Efficient, Segment_LSCD, Segment_DTADH)):
                 return "segment"
             elif isinstance(m, Classify):
                 return "classify"
-            elif isinstance(m, (Pose, Pose_LSCD, Pose_TADDH)):
+            elif isinstance(m, (Pose, Pose_LSCD, Pose_DTADH)):
                 return "pose"
-            elif isinstance(m, (OBB, OBB_LSCD, OBB_TADDH)):
+            elif isinstance(m, (OBB, OBB_LSCD, OBB_DTADH)):
                 return "obb"
 
     # Guess from model filename
