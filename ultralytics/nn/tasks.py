@@ -339,13 +339,13 @@ class DetectionModel(BaseModel):
 
         # Build strides
         m = self.model[-1]  # Detect()
-        if isinstance(m, (Detect, Detect_DyHead, Detect_DTADH, Segment, Segment_Efficient, Pose, OBB,)):
+        if isinstance(m, (Detect, Detect_DyHead, Detect_DTADH, Segment, Pose, OBB,)):
             s = 640  # 2x min stride
             m.inplace = self.inplace
-            if isinstance(m, (DetectAux,)):
+            if isinstance(m, (DetectAux)):
                 forward = lambda x: self.forward(x)[:3]
             else:
-                forward = lambda x: self.forward(x)[0] if isinstance(m, (Segment, Segment_Efficient, OBB)) else self.forward(x)
+                forward = lambda x: self.forward(x)[0] if isinstance(m, (Segment, OBB)) else self.forward(x)
             try:
                 m.stride = torch.tensor([s / x.shape[-2] for x in forward(torch.zeros(2, ch, s, s))])  # forward
             except RuntimeError as e:
@@ -863,36 +863,18 @@ def parse_model(d, ch, verbose=True, warehouse_manager=None):  # model_dict, inp
                 n = 1
         elif m is AIFI:
             args = [ch[f], *args]
-        elif m in (HGStem, HGBlock, Ghost_HGBlock, Rep_HGBlock, Dynamic_HGBlock,EIEStem):
-            c1, cm, c2 = ch[f], args[0], args[1]
-            if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
-                c2 = make_divisible(min(c2, max_channels) * width, 8)
-                cm = make_divisible(min(cm, max_channels) * width, 8)
-            args = [c1, cm, c2, *args[2:]]
-            if m in (HGBlock, Ghost_HGBlock, Rep_HGBlock, Dynamic_HGBlock):
-                args.insert(4, n)  # number of repeats
-                n = 1
+       
         elif m is ResNetLayer:
             c2 = args[1] if args[3] else args[1] * 4
         elif m is nn.BatchNorm2d:
             args = [ch[f]]
         elif m is Concat:
             c2 = sum(ch[x] for x in f)
-        elif m in (Detect,  Detect_DTADH, Segment, Segment_Efficient,
-                   Pose, OBB, OBB_LSCD, ):
+        elif m in (Detect,  Detect_DTADH, Segment,
+                   Pose, OBB):
             args.append([ch[x] for x in f])
         elif m is RTDETRDecoder:  # special case, channels arg must be passed in index 1
             args.insert(1, [ch[x] for x in f])
-        elif m is Fusion:
-            args[0] = d[args[0]]
-            c1, c2 = [ch[x] for x in f], (sum([ch[x] for x in f]) if args[0] == 'concat' else ch[f[0]])
-            args = [c1, args[0]]
-        elif m is CBLinear:
-            c2 = make_divisible(min(args[0][-1], max_channels) * width, 8)
-            c1 = ch[f]
-            args = [c1, [make_divisible(min(c2_, max_channels) * width, 8) for c2_ in args[0]], *args[1:]]
-        elif m is CBFuse:
-            c2 = ch[f[-1]]
         elif isinstance(m, str):
             t = m
             if len(args) == 2:        
@@ -913,29 +895,6 @@ def parse_model(d, ch, verbose=True, warehouse_manager=None):  # model_dict, inp
             # print(args)
         elif m in {SimAM, SpatialGroupEnhance}:
             c2 = ch[f]
-        elif m is ContextGuidedBlock_Down:
-            c2 = ch[f] * 2
-            args = [ch[f], c2, *args]
-        elif m is BiFusion:
-            c1 = [ch[x] for x in f]
-            c2 = make_divisible(min(args[0], max_channels) * width, 8)
-            args = [c1, c2]
-        elif m is SDI:
-            args = [[ch[x] for x in f]]
-        elif m is Multiply:
-            c2 = ch[f[0]]
-        elif m is FocusFeature:
-            c1 = [ch[x] for x in f]
-            c2 = int(c1[1] * 0.5 * 3)
-            args = [c1, *args]
-        elif m in {ContextGuideFusionModule}:
-            c1 = [ch[x] for x in f]
-            c2 = 2 * c1[1]
-            args = [c1]   
-        elif m in {SBA}:
-            c1 = [ch[x] for x in f]
-            c2 = c1[-1]
-            args = [c1, c2]
         else:
             c2 = ch[f]
 
