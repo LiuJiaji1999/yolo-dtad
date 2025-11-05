@@ -283,23 +283,23 @@ class v8DetectionLoss:
         # cls loss
         if isinstance(self.bce, (nn.BCEWithLogitsLoss)):
             loss[1] = self.bce(pred_scores, target_scores.to(dtype)).sum() / target_scores_sum  # BCE
-        elif isinstance(self.bce):
-            if fg_mask.sum():
-                pos_ious = bbox_iou(pred_bboxes, target_bboxes / stride_tensor, xywh=False).clamp(min=1e-6).detach()
-                # 10.0x Faster than torch.one_hot
-                cls_iou_targets = torch.zeros((target_labels.shape[0], target_labels.shape[1], self.nc),
-                                        dtype=torch.int64,
-                                        device=target_labels.device)  # (b, h*w, 80)
-                cls_iou_targets.scatter_(2, target_labels.unsqueeze(-1), 1)
-                cls_iou_targets = pos_ious * cls_iou_targets
-                fg_scores_mask = fg_mask[:, :, None].repeat(1, 1, self.nc)  # (b, h*w, 80)
-                cls_iou_targets = torch.where(fg_scores_mask > 0, cls_iou_targets, 0)
-            else:
-                cls_iou_targets = torch.zeros((target_labels.shape[0], target_labels.shape[1], self.nc),
-                                        dtype=torch.int64,
-                                        device=target_labels.device)  # (b, h*w, 80)
-            loss[1] = self.bce(pred_scores, cls_iou_targets.to(dtype)).sum() / max(fg_mask.sum(), 1)  # BCE
-        elif isinstance(self.bce):
+        # elif isinstance(self.bce,):
+        #     if fg_mask.sum():
+        #         pos_ious = bbox_iou(pred_bboxes, target_bboxes / stride_tensor, xywh=False).clamp(min=1e-6).detach()
+        #         # 10.0x Faster than torch.one_hot
+        #         cls_iou_targets = torch.zeros((target_labels.shape[0], target_labels.shape[1], self.nc),
+        #                                 dtype=torch.int64,
+        #                                 device=target_labels.device)  # (b, h*w, 80)
+        #         cls_iou_targets.scatter_(2, target_labels.unsqueeze(-1), 1)
+        #         cls_iou_targets = pos_ious * cls_iou_targets
+        #         fg_scores_mask = fg_mask[:, :, None].repeat(1, 1, self.nc)  # (b, h*w, 80)
+        #         cls_iou_targets = torch.where(fg_scores_mask > 0, cls_iou_targets, 0)
+        #     else:
+        #         cls_iou_targets = torch.zeros((target_labels.shape[0], target_labels.shape[1], self.nc),
+        #                                 dtype=torch.int64,
+        #                                 device=target_labels.device)  # (b, h*w, 80)
+        #     loss[1] = self.bce(pred_scores, cls_iou_targets.to(dtype)).sum() / max(fg_mask.sum(), 1)  # BCE
+        # elif isinstance(self.bce):
             if fg_mask.sum():
                 pos_ious = bbox_iou(pred_bboxes, target_bboxes / stride_tensor, xywh=False).clamp(min=1e-6).detach()
                 # 10.0x Faster than torch.one_hot

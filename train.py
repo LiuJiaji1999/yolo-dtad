@@ -3,20 +3,20 @@ warnings.filterwarnings('ignore')
 from ultralytics import YOLO
 
 if __name__ == '__main__':
-    model = YOLO('ultralytics/cfg/models/v8/yolov8m-DTADH.yaml.yaml')
+    model = YOLO('ultralytics/cfg/models/v8/yolov8m-DTADH.yaml')
     # model = YOLO('ultralytics/cfg/models/yolov8n-grl.yaml')
     model.load('yolov8m.pt') # loading pretrain weights
     # model.load('/home/lenovo/data/liujiaji/YOLO-DTAD/runs/train/exp/weights/best.pt') # 合成域 
     # model.load('/home/lenovo/data/liujiaji/yolov8/ultralytics-main/runs/train/exp112/weights/best.pt') # loading pretrain weights
     # model = RTDETR('ultralytics/cfg/models/v8/yolov8m-swintransformer.yaml')
 
-    model.train(data='/home/lenovo/data/liujiaji/powerGit/dayolo/domain/sim10k_to_cityscapes.yaml',             
+    model.train(data='dataset/powerdata.yaml',             
                 cache=False,
                 imgsz=640,
-                epochs=3,
-                batch=8,
+                epochs=2,
+                batch=1,
                 close_mosaic=10,
-                workers=8,
+                workers=1,
                 device='0',
                 optimizer='SGD', # using SGD
                 resume='', # runs/train/exp/weights/last.pt   断点续训！！！！ 
@@ -26,7 +26,6 @@ if __name__ == '__main__':
                 cos_lr = True,
                 project='runs/debug',
                 name='exp',
-                
                 # conf = 0.02 , ## focal-loss 
                 # cls = 1.5 
                 )
