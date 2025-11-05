@@ -3,7 +3,7 @@ warnings.filterwarnings('ignore')
 from ultralytics import YOLO
 
 if __name__ == '__main__':
-    model = YOLO('ultralytics/cfg/models/v8/yolov8m.yaml')
+    model = YOLO('ultralytics/cfg/models/v8/yolov8m-DTADH.yaml.yaml')
     # model = YOLO('ultralytics/cfg/models/yolov8n-grl.yaml')
     model.load('yolov8m.pt') # loading pretrain weights
     # model.load('/home/lenovo/data/liujiaji/YOLO-DTAD/runs/train/exp/weights/best.pt') # 合成域 
