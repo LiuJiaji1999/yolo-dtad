@@ -82,7 +82,8 @@ class BboxLoss(nn.Module):
         super().__init__()
         self.reg_max = reg_max
         self.use_dfl = use_dfl
-        self.nwd_loss = True # 收敛会变慢？
+        # self.nwd_loss = True # 收敛会变慢？
+        self.nwd_loss = False 
         self.iou_ratio = 0.5  # 多类别中小目标居多的话，应该让nwd的占比变大，如果全是小目标的，为0
         
         self.use_wiseiou = False
@@ -185,8 +186,8 @@ class v8DetectionLoss:
         h = model.args  # hyperparameters
 
         m = model.model[-1]  # Detect() module
-        # self.bce = nn.BCEWithLogitsLoss(reduction="none")
-        self.bce = EMASlideLoss(nn.BCEWithLogitsLoss(reduction='none'))  # Exponential Moving Average Slide Loss
+        self.bce = nn.BCEWithLogitsLoss(reduction="none")
+        # self.bce = EMASlideLoss(nn.BCEWithLogitsLoss(reduction='none'))  # Exponential Moving Average Slide Loss
         # self.bce = SlideLoss(nn.BCEWithLogitsLoss(reduction='none')) # Slide Loss
         self.hyp = h
         self.stride = m.stride  # model strides
