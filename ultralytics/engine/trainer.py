@@ -350,7 +350,7 @@ class BaseTrainer:
                 self.train_loader.sampler.set_epoch(epoch)
 
             pbar = enumerate(self.train_loader)
-            print('1.',pbar)
+            # print('1.',pbar)
 
             # Update dataloader attributes (optional)
             if epoch == (self.epochs - self.args.close_mosaic):
@@ -360,13 +360,13 @@ class BaseTrainer:
             if RANK in (-1, 0):
                 LOGGER.info(self.progress_string())
                 pbar = TQDM(enumerate(self.train_loader), total=nb)
-                print('2.',pbar)
+                # print('2.',pbar)
             
             self.tloss = None
             self.optimizer.zero_grad()
 
             for i, batch in pbar:
-                print('循环batch',batch)
+                # print('循环batch',batch)
                 self.run_callbacks("on_train_batch_start")
                 # Warmup
                 ni = i + nb * epoch
