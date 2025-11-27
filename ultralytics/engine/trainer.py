@@ -49,6 +49,7 @@ from ultralytics.utils.torch_utils import (
     strip_optimizer,
 )
 from ultralytics.nn.extra_modules.kernel_warehouse import get_temperature
+from ultralytics.data.multiview import generate_multiview_batch
 
 class BaseTrainer:
     """
@@ -388,7 +389,12 @@ class BaseTrainer:
                 # Forward 
                 with torch.cuda.amp.autocast(self.amp):
                     batch = self.preprocess_batch(batch)
-                    self.loss, self.loss_items = self.model(batch)
+                    # self.loss, self.loss_items = self.model(batch)
+
+                    # 多视角增强
+                    batch_v = generate_multiview_batch(batch,visualize=False)
+                    self.loss, self.loss_items = self.model(batch_v)
+                    
 
                     if RANK != -1:
                         self.loss *= world_size
