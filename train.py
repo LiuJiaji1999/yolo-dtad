@@ -11,7 +11,7 @@ if __name__ == '__main__':
     # model.load('/home/lenovo/data/liujiaji/yolov8/ultralytics-main/runs/train/exp112/weights/best.pt') # loading pretrain weights
     # model = RTDETR('ultralytics/cfg/models/v8/yolov8m-swintransformer.yaml')
 
-    model.train(data='/home/lenovo/data/liujiaji/ultralytics-yolo11-main/dataset/powerdata.yaml', # powerdata  publicallpower VisDrone     
+    model.train(data='/home/lenovo/data/liujiaji/ultralytics-yolo11-main/dataset/VisDrone.yaml', # powerdata  publicallpower VisDrone     
                 cache=False,
                 imgsz=640,
                 epochs=50,
