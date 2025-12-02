@@ -126,7 +126,6 @@ class Annotator:
         self.pil = pil or non_ascii
         # self.lw = line_width or max(round(sum(im.shape) / 2 * 0.003), 2)  # line width
         self.lw =  max(round(sum(im.size if isinstance(im, Image.Image) else im.shape) / 2 * 0.003), 2)
-        
         print('self.lw=',self.lw) 
         if self.pil:  # use PIL
             self.im = im if isinstance(im, Image.Image) else Image.fromarray(im)
