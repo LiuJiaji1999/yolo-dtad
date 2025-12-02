@@ -33,8 +33,8 @@ def get_weight_size(path):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--weights', type=str, default='/home/lenovo/data/liujiaji/powerGit/yolov8/runs/8.1.9/exp81/weights/best.pt', help='trained weights path')
-    parser.add_argument('--batch', type=int, default=16, help='total batch size for all GPUs')
+    parser.add_argument('--weights', type=str, default='/home/lenovo/data/liujiaji/YOLO-DTAD/runs/debug/mvexp2/weights/best.pt', help='trained weights path')
+    parser.add_argument('--batch', type=int, default=1, help='total batch size for all GPUs')
     parser.add_argument('--imgs', nargs='+', type=int, default=[640, 640], help='[height, width] image sizes')
     parser.add_argument('--device', default='0', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('--warmup', default=200, type=int, help='warmup time')
