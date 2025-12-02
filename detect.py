@@ -3,7 +3,7 @@ warnings.filterwarnings('ignore')
 from ultralytics import YOLO
 
 if __name__ == '__main__':
-    model = YOLO('/home/lenovo/data/liujiaji/YOLO-DTAD/runs/debug/mvexp2/weights/best.pt') # select your model.pt path
+    model = YOLO('/home/lenovo/data/liujiaji/YOLO-DTAD/runs/debug/mvexp3/weights/best.pt') # select your model.pt path
     # model.model.names = {0: 'pin-uninstall', 1: 'pin-rust', 2: 'pin-defect',
                         #  3: 'insulator-burn', 4: 'insulator-defect', 5: 'insulator-dirty'}  # 修改类别名称
     # print("模型修改后的类别名称:", model.model.names)

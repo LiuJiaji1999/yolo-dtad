@@ -124,7 +124,10 @@ class Annotator:
         assert im.data.contiguous, "Image not contiguous. Apply np.ascontiguousarray(im) to Annotator() input images."
         non_ascii = not is_ascii(example)  # non-latin labels, i.e. asian, arabic, cyrillic
         self.pil = pil or non_ascii
-        self.lw = line_width or max(round(sum(im.shape) / 2 * 0.003), 2)  # line width
+        # self.lw = line_width or max(round(sum(im.shape) / 2 * 0.003), 2)  # line width
+        self.lw =  max(round(sum(im.size if isinstance(im, Image.Image) else im.shape) / 2 * 0.003), 2)
+        
+        print('self.lw=',self.lw) 
         if self.pil:  # use PIL
             self.im = im if isinstance(im, Image.Image) else Image.fromarray(im)
             self.draw = ImageDraw.Draw(self.im)
@@ -197,6 +200,8 @@ class Annotator:
                 p1, p2 = (int(box[0]), int(box[1])), (int(box[2]), int(box[3]))
                 cv2.rectangle(self.im, p1, p2, color, thickness=self.lw, lineType=cv2.LINE_AA)
             if label:
+                # print("********* here is plot text")
+                # print('fontScale=',self.sf, "thickness=",self.tf) #fontScale= 1.6666666666666667 thickness= 4
                 w, h = cv2.getTextSize(label, 0, fontScale=self.sf, thickness=self.tf)[0]  # text width, height
                 outside = p1[1] - h >= 3
                 p2 = p1[0] + w, p1[1] - h - 3 if outside else p1[1] + h + 3
