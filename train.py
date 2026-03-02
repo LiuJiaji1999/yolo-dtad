@@ -14,8 +14,8 @@ if __name__ == '__main__':
     model.train(data='/home/lenovo/data/liujiaji/ultralytics-yolo11-main/dataset/VisDrone.yaml', # powerdata  publicallpower VisDrone     
                 cache=False,
                 imgsz=640,
-                epochs=50,
-                batch=2,
+                epochs=100,
+                batch=4,
                 close_mosaic=0,
                 workers=4,
                 device='0',
@@ -26,7 +26,7 @@ if __name__ == '__main__':
                 patience=0,
                 # cos_lr = True,
                 project='runs/debug',
-                name='mvexp',
+                name='lwexp',
                 # conf = 0.02 , ## focal-loss 
                 # cls = 1.5 
                 )

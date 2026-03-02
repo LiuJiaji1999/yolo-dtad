@@ -269,7 +269,7 @@ class BaseModel(nn.Module):
         """
         self = super()._apply(fn)
         m = self.model[-1]  # Detect()
-        if isinstance(m, (Detect, Detect_DyHead, Detect_DTADH, Segment)):
+        if isinstance(m, (Detect, Detect_DyHead, Detect_TADDH, Segment)):
             m.stride = fn(m.stride)
             m.anchors = fn(m.anchors)
             m.strides = fn(m.strides)
@@ -339,7 +339,7 @@ class DetectionModel(BaseModel):
 
         # Build strides
         m = self.model[-1]  # Detect()
-        if isinstance(m, (Detect, Detect_DyHead, Detect_DTADH, Segment, Pose, OBB,)):
+        if isinstance(m, (Detect, Detect_DyHead, Detect_TADDH, Segment, Pose, OBB,)):
             s = 640  # 2x min stride
             m.inplace = self.inplace
             if isinstance(m, (DetectAux)):
@@ -758,7 +758,7 @@ def attempt_load_weights(weights, device=None, inplace=True, fuse=False):
     # Module updates
     for m in ensemble.modules():
         t = type(m)
-        if t in (nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU, Detect, Detect_DTADH, Segment,OBB):
+        if t in (nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU, Detect, Detect_TADDH, Segment,OBB):
             m.inplace = inplace
         elif t is nn.Upsample and not hasattr(m, "recompute_scale_factor"):
             m.recompute_scale_factor = None  # torch 1.11.0 compatibility
@@ -794,7 +794,7 @@ def attempt_load_one_weight(weight, device=None, inplace=True, fuse=False):
     # Module updates
     for m in model.modules():
         t = type(m)
-        if t in (nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU, Detect, Detect_DyHead, Detect_DTADH, Segment,OBB):
+        if t in (nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU, Detect, Detect_DyHead, Detect_TADDH, Segment,OBB):
             m.inplace = inplace
         elif t is nn.Upsample and not hasattr(m, "recompute_scale_factor"):
             m.recompute_scale_factor = None  # torch 1.11.0 compatibility
@@ -870,7 +870,7 @@ def parse_model(d, ch, verbose=True, warehouse_manager=None):  # model_dict, inp
             args = [ch[f]]
         elif m is Concat:
             c2 = sum(ch[x] for x in f)
-        elif m in (Detect,  Detect_DTADH, Segment,
+        elif m in (Detect,  Detect_TADDH, Segment,
                    Pose, OBB):
             args.append([ch[x] for x in f])
         elif m is RTDETRDecoder:  # special case, channels arg must be passed in index 1
@@ -1002,7 +1002,7 @@ def guess_model_task(model):
                 return cfg2task(eval(x))
 
         for m in model.modules():
-            if isinstance(m, Detect, Detect_DyHead, Detect_DTADH):
+            if isinstance(m, Detect, Detect_DyHead, Detect_TADDH):
                 return "detect"
             elif isinstance(m, (Segment)):
                 return "segment"

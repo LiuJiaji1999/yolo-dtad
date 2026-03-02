@@ -13,7 +13,7 @@ from .dyhead_prune import DyHeadBlock_Prune
 from .block import DyDCNv2
 from ultralytics.utils.tal import dist2bbox, make_anchors, dist2rbox
 
-__all__ = ['Detect_DTADH', 'Detect_DyHead','DetectAux' ]
+__all__ = ['Detect_TADDH', 'Detect_DyHead','DetectAux' ] #Detect_DTADH
 
 
 
@@ -62,7 +62,8 @@ class TaskDecomposition(nn.Module):
 
         return feat
 
-class Detect_DTADH(nn.Module):
+# class Detect_DTADH(nn.Module):
+class Detect_TADDH(nn.Module):
     # Task Dynamic Align Detection Head -------TDADH
     """YOLOv8 Detect head for detection models."""
 
@@ -96,7 +97,7 @@ class Detect_DTADH(nn.Module):
 
     def forward(self, x):
         """Concatenates and returns predicted bounding boxes and class probabilities."""
-        print('检测头个数',self.nl)
+        # print('检测头个数',self.nl)
         for i in range(self.nl):
             stack_res_list = [self.share_conv[0](x[i])]
             stack_res_list.extend(m(stack_res_list[-1]) for m in self.share_conv[1:])
