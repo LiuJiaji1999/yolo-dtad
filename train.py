@@ -11,11 +11,11 @@ if __name__ == '__main__':
     # model.load('/home/lenovo/data/liujiaji/yolov8/ultralytics-main/runs/train/exp112/weights/best.pt') # loading pretrain weights
     # model = RTDETR('ultralytics/cfg/models/v8/yolov8m-swintransformer.yaml')
 
-    model.train(data='/home/lenovo/data/liujiaji/ultralytics-yolo11-main/dataset/VisDrone.yaml', # powerdata  publicallpower VisDrone     
+    model.train(data='/home/lenovo/data/liujiaji/ultralytics-yolo11-main/dataset/publicpowerdata.yaml', # powerdata  publicallpower VisDrone     
                 cache=False,
                 imgsz=640,
                 epochs=100,
-                batch=4,
+                batch=8,
                 close_mosaic=0,
                 workers=4,
                 device='0',
@@ -25,8 +25,8 @@ if __name__ == '__main__':
                 # fraction=0.2,
                 patience=0,
                 # cos_lr = True,
-                project='runs/debug',
-                name='lwexp',
+                project='runs/train',
+                name='exp',
                 # conf = 0.02 , ## focal-loss 
                 # cls = 1.5 
                 )
