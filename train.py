@@ -3,19 +3,19 @@ warnings.filterwarnings('ignore')
 from ultralytics import YOLO
 
 if __name__ == '__main__':
-    # model = YOLO('ultralytics/cfg/models/v8/yolov8m-DTADH.yaml')
-    model = YOLO('ultralytics/cfg/models/v8/yolov8m.yaml')
+    model = YOLO('ultralytics/cfg/models/v8/yolov8m-DTADH.yaml')
+    # model = YOLO('ultralytics/cfg/models/v8/yolov8m.yaml')
     # model = YOLO('ultralytics/cfg/models/yolov8n-grl.yaml')
     model.load('yolov8m.pt') # loading pretrain weights
     # model.load('/home/lenovo/data/liujiaji/YOLO-DTAD/runs/train/exp/weights/best.pt') # 合成域 
     # model.load('/home/lenovo/data/liujiaji/yolov8/ultralytics-main/runs/train/exp112/weights/best.pt') # loading pretrain weights
     # model = RTDETR('ultralytics/cfg/models/v8/yolov8m-swintransformer.yaml')
 
-    model.train(data='/home/lenovo/data/liujiaji/ultralytics-yolo11-main/dataset/publicpowerdata.yaml', # powerdata  publicallpower VisDrone     
+    model.train(data='/home/lenovo/data/liujiaji/ultralytics-yolo11-main/dataset/publicallpower.yaml', # powerdata  publicallpower VisDrone     
                 cache=False,
                 imgsz=640,
                 epochs=100,
-                batch=8,
+                batch=4,
                 close_mosaic=0,
                 workers=4,
                 device='0',

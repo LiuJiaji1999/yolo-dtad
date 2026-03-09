@@ -44,4 +44,5 @@ head:
   - [-1, 3, C2f, [512]]  # 21 (P5/32-large)
 
   # - [[15, 18, 21], 1, Detect_DTADH, [nc, 512]]  # Detect(P3, P4, P5)
-  - [[12, 15, 18, 21], 1, Detect_DTADH, [nc, 384]]  # Detect(12, P3, P4, P5)
+  # - [[12, 15, 18, 21], 1, Detect_DTADH, [nc, 384]]  # Detect(12, P3, P4, P5)
+  - [[12, 15, 18, 21], 1, Detect_TADDH, [nc, 384]]

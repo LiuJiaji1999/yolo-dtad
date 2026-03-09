@@ -389,11 +389,11 @@ class BaseTrainer:
                 # Forward 
                 with torch.cuda.amp.autocast(self.amp):
                     batch = self.preprocess_batch(batch)
-                    # self.loss, self.loss_items = self.model(batch)
+                    self.loss, self.loss_items = self.model(batch)
 
-                    # 多视角增强
-                    batch_v = generate_multiview_batch(batch,visualize=False)
-                    self.loss, self.loss_items = self.model(batch_v)
+                    # # 多视角增强
+                    # batch_v = generate_multiview_batch(batch,visualize=False)
+                    # self.loss, self.loss_items = self.model(batch_v)
                     
 
                     if RANK != -1:
