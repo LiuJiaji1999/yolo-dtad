@@ -1,4 +1,4 @@
-# YOLO-DTAD: Dynamic Task Alignment Detection Model for Multi-Category Power Defects Image
+## Single-Source Object Detection
 
 ## Introduction
 This is our PyTorch implementation of the paper "[`YOLO-DTAD: Dynamic Task Alignment Detection Model for Multi-Category Power Defects Image`](https://ieeexplore.ieee.org/document/10884832)" published in ***IEEE Transactions on Instrumentation and Measurement***.
